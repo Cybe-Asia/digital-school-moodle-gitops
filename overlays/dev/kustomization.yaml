@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: school-dev
+
+resources:
+  - ../../base/admission
+  - ../../base/auth
+  - ../../base/notification
+  - ../../base/otp
+
+images:
+  - name: ghcr.io/cybe-asia/admission-services
+    newTag: dev
+  - name: ghcr.io/cybe-asia/auth-services
+    newTag: dev
+  - name: ghcr.io/cybe-asia/notification-services
+    newTag: dev
+  - name: ghcr.io/cybe-asia/otp-services
+    newTag: dev

@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admission-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: admission-service
+  template:
+    metadata:
+      labels:
+        app: admission-service
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      nodeSelector:
+        kubernetes.io/hostname: cybe-dell-r250-01
+      containers:
+        - name: admission-service
+          image: ghcr.io/cybe-asia/admission-services
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SERVER_PORT
+              value: "8080"
+            - name: NEO4J_URI
+              value: "neo4j://neo4j.platform-data.svc.cluster.local:7687"
+            - name: NEO4J_USER
+              value: "neo4j"
+            - name: NEO4J_PASSWORD
+              value: "password123"
