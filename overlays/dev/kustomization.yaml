@@ -11,7 +11,8 @@ resources:
 
 images:
 - name: ghcr.io/cybe-asia/admission-services
-  newTag: dev
+  newName: ghcr.io/cybe-asia/admission-services
+  newTag: dev-c45c880
 - name: ghcr.io/cybe-asia/auth-services
   newName: ghcr.io/cybe-asia/auth-services
   newTag: dev-b268f59
