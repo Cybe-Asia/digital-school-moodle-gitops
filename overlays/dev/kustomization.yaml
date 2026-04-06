@@ -14,7 +14,8 @@ images:
   newName: ghcr.io/cybe-asia/admission-services
   newTag: dev-08c9671
 - name: ghcr.io/cybe-asia/auth-services
-  newTag: dev
+  newName: ghcr.io/cybe-asia/auth-services
+  newTag: dev-b7389ec
 - name: ghcr.io/cybe-asia/notification-services
   newTag: dev
 - name: ghcr.io/cybe-asia/otp-services
