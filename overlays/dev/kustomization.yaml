@@ -4,17 +4,18 @@ kind: Kustomization
 namespace: school-dev
 
 resources:
-  - ../../base/admission
-  - ../../base/auth
-  - ../../base/notification
-  - ../../base/otp
+- ../../base/admission
+- ../../base/auth
+- ../../base/notification
+- ../../base/otp
 
 images:
-  - name: ghcr.io/cybe-asia/admission-services
-    newTag: dev
-  - name: ghcr.io/cybe-asia/auth-services
-    newTag: dev
-  - name: ghcr.io/cybe-asia/notification-services
-    newTag: dev
-  - name: ghcr.io/cybe-asia/otp-services
-    newTag: dev
+- name: ghcr.io/cybe-asia/admission-services
+  newName: ghcr.io/cybe-asia/admission-services
+  newTag: dev-08c9671
+- name: ghcr.io/cybe-asia/auth-services
+  newTag: dev
+- name: ghcr.io/cybe-asia/notification-services
+  newTag: dev
+- name: ghcr.io/cybe-asia/otp-services
+  newTag: dev
