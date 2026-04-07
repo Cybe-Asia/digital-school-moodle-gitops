@@ -8,6 +8,7 @@ resources:
 - ../../base/auth
 - ../../base/notification
 - ../../base/otp
+- ingress.yaml
 
 images:
 - name: ghcr.io/cybe-asia/admission-services
