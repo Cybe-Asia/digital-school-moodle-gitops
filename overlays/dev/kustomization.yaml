@@ -19,7 +19,7 @@ images:
   newTag: dev-b268f59
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
-  newTag: dev-8d21eae
+  newTag: dev-488a8fd
 - name: ghcr.io/cybe-asia/otp-services
   newName: ghcr.io/cybe-asia/otp-services
   newTag: dev-4b4201b
