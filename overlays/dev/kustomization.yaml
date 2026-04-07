@@ -22,4 +22,4 @@ images:
   newTag: dev-488a8fd
 - name: ghcr.io/cybe-asia/otp-services
   newName: ghcr.io/cybe-asia/otp-services
-  newTag: dev-4b4201b
+  newTag: dev-7af0499
