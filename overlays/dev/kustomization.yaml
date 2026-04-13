@@ -72,7 +72,7 @@ images:
   newTag: dev-79341be
 - name: ghcr.io/cybe-asia/digital-school-frontend
   newName: ghcr.io/cybe-asia/digital-school-frontend
-  newTag: dev-981da95
+  newTag: dev-9ec1a1e
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
   newTag: dev-a11e3e4
