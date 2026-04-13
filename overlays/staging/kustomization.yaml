@@ -12,56 +12,56 @@ resources:
 - ingress.yaml
 
 patches:
-  - target:
-      kind: Service
-      name: admission-service
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: NodePort
-      - op: add
-        path: /spec/ports/0/nodePort
-        value: 31090
-  - target:
-      kind: Service
-      name: auth-service
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: NodePort
-      - op: add
-        path: /spec/ports/0/nodePort
-        value: 31093
-  - target:
-      kind: Service
-      name: notification-service
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: NodePort
-      - op: add
-        path: /spec/ports/0/nodePort
-        value: 31092
-  - target:
-      kind: Service
-      name: otp-service
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: NodePort
-      - op: add
-        path: /spec/ports/0/nodePort
-        value: 31094
-  - target:
-      kind: Service
-      name: frontend
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: NodePort
-      - op: add
-        path: /spec/ports/0/nodePort
-        value: 31095
+- patch: |-
+    - op: replace
+      path: /spec/type
+      value: NodePort
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 31090
+  target:
+    kind: Service
+    name: admission-service
+- patch: |-
+    - op: replace
+      path: /spec/type
+      value: NodePort
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 31093
+  target:
+    kind: Service
+    name: auth-service
+- patch: |-
+    - op: replace
+      path: /spec/type
+      value: NodePort
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 31092
+  target:
+    kind: Service
+    name: notification-service
+- patch: |-
+    - op: replace
+      path: /spec/type
+      value: NodePort
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 31094
+  target:
+    kind: Service
+    name: otp-service
+- patch: |-
+    - op: replace
+      path: /spec/type
+      value: NodePort
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 31095
+  target:
+    kind: Service
+    name: frontend
 
 images:
 - name: ghcr.io/cybe-asia/admission-services
@@ -70,12 +70,12 @@ images:
 - name: ghcr.io/cybe-asia/auth-services
   newName: ghcr.io/cybe-asia/auth-services
   newTag: staging-latest
+- name: ghcr.io/cybe-asia/digital-school-frontend
+  newName: ghcr.io/cybe-asia/digital-school-frontend
+  newTag: release-v0.1-9ec1a1e
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
   newTag: staging-latest
 - name: ghcr.io/cybe-asia/otp-services
   newName: ghcr.io/cybe-asia/otp-services
-  newTag: staging-latest
-- name: ghcr.io/cybe-asia/digital-school-frontend
-  newName: ghcr.io/cybe-asia/digital-school-frontend
   newTag: staging-latest
