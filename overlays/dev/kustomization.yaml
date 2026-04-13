@@ -11,46 +11,46 @@ resources:
 - ingress.yaml
 
 patches:
-  - target:
-      kind: Service
-      name: admission-service
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: NodePort
-      - op: add
-        path: /spec/ports/0/nodePort
-        value: 31080
-  - target:
-      kind: Service
-      name: auth-service
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: NodePort
-      - op: add
-        path: /spec/ports/0/nodePort
-        value: 31083
-  - target:
-      kind: Service
-      name: notification-service
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: NodePort
-      - op: add
-        path: /spec/ports/0/nodePort
-        value: 31082
-  - target:
-      kind: Service
-      name: otp-service
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: NodePort
-      - op: add
-        path: /spec/ports/0/nodePort
-        value: 31084
+- patch: |-
+    - op: replace
+      path: /spec/type
+      value: NodePort
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 31080
+  target:
+    kind: Service
+    name: admission-service
+- patch: |-
+    - op: replace
+      path: /spec/type
+      value: NodePort
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 31083
+  target:
+    kind: Service
+    name: auth-service
+- patch: |-
+    - op: replace
+      path: /spec/type
+      value: NodePort
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 31082
+  target:
+    kind: Service
+    name: notification-service
+- patch: |-
+    - op: replace
+      path: /spec/type
+      value: NodePort
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 31084
+  target:
+    kind: Service
+    name: otp-service
 
 images:
 - name: ghcr.io/cybe-asia/admission-services
@@ -61,7 +61,7 @@ images:
   newTag: dev-cfd44ef
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
-  newTag: dev-dd3cc4e
+  newTag: dev-7424d25
 - name: ghcr.io/cybe-asia/otp-services
   newName: ghcr.io/cybe-asia/otp-services
   newTag: dev-6dea360
