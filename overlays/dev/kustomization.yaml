@@ -8,6 +8,7 @@ resources:
 - ../../base/auth
 - ../../base/notification
 - ../../base/otp
+- ../../base/frontend
 - ingress.yaml
 
 patches:
@@ -51,6 +52,16 @@ patches:
   target:
     kind: Service
     name: otp-service
+- patch: |-
+    - op: replace
+      path: /spec/type
+      value: NodePort
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 31085
+  target:
+    kind: Service
+    name: frontend
 
 images:
 - name: ghcr.io/cybe-asia/admission-services
