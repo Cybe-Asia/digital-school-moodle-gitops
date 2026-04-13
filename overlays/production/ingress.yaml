@@ -1,0 +1,53 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: school-production-ingress
+  namespace: school-production
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /api/v1/auth-service
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+          - path: /api/v1/googleLogin
+            pathType: Prefix
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 80
+          - path: /api/v1/admission-service
+            pathType: Prefix
+            backend:
+              service:
+                name: admission-service
+                port:
+                  number: 80
+          - path: /api/v1/otp-service
+            pathType: Prefix
+            backend:
+              service:
+                name: otp-service
+                port:
+                  number: 80
+          - path: /api/email/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: notification-service
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
