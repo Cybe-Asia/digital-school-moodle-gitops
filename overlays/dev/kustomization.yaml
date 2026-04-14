@@ -9,6 +9,7 @@ resources:
 - ../../base/notification
 - ../../base/otp
 - ../../base/frontend
+- ../../base/neo4j
 - ingress.yaml
 
 patches:

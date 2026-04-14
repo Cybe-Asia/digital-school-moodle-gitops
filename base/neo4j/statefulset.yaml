@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neo4j
+spec:
+  serviceName: neo4j
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j
+  template:
+    metadata:
+      labels:
+        app: neo4j
+    spec:
+      containers:
+      - env:
+        - name: NEO4J_AUTH
+          valueFrom:
+            secretKeyRef:
+              key: NEO4J_AUTH
+              name: neo4j-secret
+        - name: NEO4J_dbms_memory_heap_initial__size
+          value: 256m
+        - name: NEO4J_dbms_memory_heap_max__size
+          value: 512m
+        - name: NEO4J_server_config_strict__validation_enabled
+          value: "false"
+        image: neo4j:5.15
+        imagePullPolicy: IfNotPresent
+        name: neo4j
+        ports:
+        - containerPort: 7474
+          name: http
+          protocol: TCP
+        - containerPort: 7687
+          name: bolt
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: 7687
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 500m
+            memory: 1Gi
+          requests:
+            cpu: 250m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /data
+          name: neo4j-data
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: neo4j-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 5Gi
+      storageClassName: local-path
+      volumeMode: Filesystem
