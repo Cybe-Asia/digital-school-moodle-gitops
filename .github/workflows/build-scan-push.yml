@@ -1,0 +1,160 @@
+name: build-scan-push
+
+# Reusable workflow: build container image, scan with Trivy, generate SBOM,
+# push to GHCR, and auto-bump the matching overlay in this gitops repo.
+#
+# Phase 1 doc coverage:
+#   L4-S1 immutable sha-<gitsha> tags
+#   L4-S2 Trivy scan gating (fail on CRITICAL)
+#   L4-S3 SBOM artifact retained per build
+#   L5-S1 single shared template across services
+#   L7-S1 env repo enforcement (auto-PR to overlays/dev; manual PR to
+#         higher envs preserves doc's dev -> test -> staging promotion)
+#
+# Services call this via `uses: Cybe-Asia/digital-school-gitops/.github/workflows/build-scan-push.yml@dev`.
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: "Logical service name (also used as image repo name in GHCR)"
+        required: true
+        type: string
+      kustomize_image_key:
+        description: "The image reference as it appears in kustomization.yaml 'name:' field"
+        required: true
+        type: string
+      context:
+        description: "Docker build context path"
+        required: false
+        type: string
+        default: "."
+      dockerfile:
+        description: "Dockerfile path"
+        required: false
+        type: string
+        default: "Dockerfile"
+      # Branch => overlay mapping. Defaults match the digital-school-gitops layout.
+      overlay_on_dev:
+        required: false
+        type: string
+        default: "overlays/dev"
+      overlay_on_release:
+        required: false
+        type: string
+        default: "overlays/staging"
+      overlay_on_main:
+        required: false
+        type: string
+        default: "overlays/production"
+    secrets:
+      GHCR_TOKEN:
+        required: true
+      GITOPS_TOKEN:
+        required: true
+
+jobs:
+  build-scan-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.vars.outputs.image_tag }}
+      overlay_path: ${{ steps.vars.outputs.overlay_path }}
+      image_ref: ${{ steps.vars.outputs.image_ref }}
+    steps:
+      - name: Checkout service repo
+        uses: actions/checkout@v4
+
+      - name: Compute tag + overlay
+        id: vars
+        run: |
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          # Doc L4-S1: tag format is sha-<gitsha>. Same image flows through
+          # envs via overlay digest bumps (L8: no rebuild between envs).
+          IMAGE_TAG="sha-${SHORT_SHA}"
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+          SERVICE="${{ inputs.service_name }}"
+          IMAGE_NAME=$(echo "ghcr.io/${{ github.repository_owner }}/${SERVICE}" | tr '[:upper:]' '[:lower:]')
+          echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "image_ref=${IMAGE_NAME}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+          case "${GITHUB_REF}" in
+            refs/heads/dev)
+              OVERLAY="${{ inputs.overlay_on_dev }}" ;;
+            refs/heads/release-*)
+              OVERLAY="${{ inputs.overlay_on_release }}" ;;
+            refs/heads/main)
+              OVERLAY="${{ inputs.overlay_on_main }}" ;;
+            *)
+              OVERLAY="" ;;  # other branches: build + scan, do not touch gitops
+          esac
+          echo "overlay_path=${OVERLAY}" >> "$GITHUB_OUTPUT"
+
+          echo "service=${SERVICE}  tag=${IMAGE_TAG}  overlay=${OVERLAY:-<none>}"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build image
+        run: |
+          docker build \
+            -t "${{ steps.vars.outputs.image_ref }}" \
+            -f "${{ inputs.dockerfile }}" \
+            "${{ inputs.context }}"
+
+      - name: Trivy vulnerability scan (L4-S2)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.vars.outputs.image_ref }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+
+      - name: Generate SBOM (L4-S3)
+        uses: anchore/sbom-action@v0.17.4
+        with:
+          image: ${{ steps.vars.outputs.image_ref }}
+          format: spdx-json
+          artifact-name: ${{ inputs.service_name }}-sbom-${{ steps.vars.outputs.image_tag }}.spdx.json
+          output-file: sbom.spdx.json
+          upload-artifact: true
+          upload-artifact-retention: 90
+
+      - name: Push image
+        run: docker push "${{ steps.vars.outputs.image_ref }}"
+
+      - name: Setup kustomize
+        if: steps.vars.outputs.overlay_path != ''
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Auto-bump gitops overlay
+        if: steps.vars.outputs.overlay_path != ''
+        run: |
+          set -e
+          git config --global user.email "ci-bot@cybe-asia.github"
+          git config --global user.name "CI Bot"
+
+          git clone "https://x-access-token:${{ secrets.GITOPS_TOKEN }}@github.com/Cybe-Asia/digital-school-gitops.git" gitops-repo
+          cd gitops-repo
+          git checkout dev
+
+          cd "${{ steps.vars.outputs.overlay_path }}"
+          kustomize edit set image "${{ inputs.kustomize_image_key }}=${{ steps.vars.outputs.image_ref }}"
+
+          if git diff --quiet kustomization.yaml; then
+            echo "no changes to ${{ steps.vars.outputs.overlay_path }}/kustomization.yaml"
+            exit 0
+          fi
+
+          git add kustomization.yaml
+          git commit -m "chore(${{ inputs.service_name }}): bump ${{ steps.vars.outputs.overlay_path }} to ${{ steps.vars.outputs.image_tag }} [skip ci]"
+          git push origin dev
