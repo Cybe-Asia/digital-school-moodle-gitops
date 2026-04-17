@@ -17,7 +17,7 @@ spec:
           serviceAccountName: neo4j-backup
           containers:
             - name: backup
-              image: rancher/kubectl:v1.29.4
+              image: alpine/k8s:1.29.4
               command: ["sh", "-c"]
               args:
                 - |
