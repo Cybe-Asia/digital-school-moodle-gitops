@@ -93,4 +93,4 @@ images:
   newTag: sha-fc34a2e
 - name: ghcr.io/cybe-asia/otp-services
   newName: ghcr.io/cybe-asia/otp-services
-  newTag: dev-e0cab3a
+  newTag: sha-02b7233
