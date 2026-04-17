@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: staging-smoke-test
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: smoke
+          image: curlimages/curl:8.10.1
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -eu
+              fail=0
+              check() {
+                name=$1
+                url=$2
+                code=$(curl -s --connect-timeout 5 -m 10 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || echo "000")
+                if [ "$code" = "000" ]; then
+                  echo "FAIL $name: unreachable"
+                  fail=1
+                else
+                  echo "OK   $name: HTTP $code"
+                fi
+              }
+              check admission-service http://admission-service/
+              check auth-service http://auth-service/
+              check notification-service http://notification-service/
+              check otp-service http://otp-service/
+              check frontend http://frontend/
+              check neo4j-http http://neo4j:7474/
+              if [ "$fail" != "0" ]; then
+                echo "smoke test FAILED"
+                exit 1
+              fi
+              echo "smoke test PASSED"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

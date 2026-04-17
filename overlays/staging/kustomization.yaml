@@ -16,6 +16,19 @@ resources:
 - app-config.yaml
 - app-secrets-sealed.yaml
 - neo4j-secret-sealed.yaml
+- smoke-test-job.yaml
+
+replicas:
+- name: admission-service
+  count: 2
+- name: auth-service
+  count: 2
+- name: notification-service
+  count: 2
+- name: otp-service
+  count: 2
+- name: frontend
+  count: 2
 
 patches:
 - patch: |-
