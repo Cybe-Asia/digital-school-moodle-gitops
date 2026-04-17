@@ -1,0 +1,31 @@
+# CODEOWNERS for digital-school-gitops
+#
+# When branch protection has 'Require review from Code Owners' enabled,
+# any PR touching a path below auto-requests the listed owners and
+# cannot be merged without their approval.
+#
+# Doc reference: Phase 1 Roadmap §2.4 L7 — "Staging requires PR approval
+# + CODEOWNERS; No direct commits to staging branch".
+
+# Default — everything in the repo
+* @ariefnugrahaaa
+
+# Platform / base layer — changes here affect every environment at once
+/base/ @ariefnugrahaaa
+/.github/ @ariefnugrahaaa
+
+# Per-environment overlays. Replace @ariefnugrahaaa with a team handle
+# (e.g. @Cybe-Asia/devops-platform) once the team exists in the org.
+/overlays/dev/ @ariefnugrahaaa
+/overlays/test/ @ariefnugrahaaa
+
+# Staging + production — stricter review expected. Add additional
+# reviewers here as the team grows.
+/overlays/staging/ @ariefnugrahaaa
+/overlays/production/ @ariefnugrahaaa
+
+# ArgoCD Application manifests — cluster-wiring, high-impact
+/argocd/ @ariefnugrahaaa
+
+# Runbooks — operational procedures; review for accuracy and safety
+/runbooks/ @ariefnugrahaaa
