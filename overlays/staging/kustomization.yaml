@@ -9,6 +9,7 @@ resources:
 - ../../base/notification
 - ../../base/otp
 - ../../base/frontend
+- ../../base/neo4j
 - ../../base/governance
 - ingress.yaml
 - resource-quota.yaml
@@ -64,20 +65,84 @@ patches:
   target:
     kind: Service
     name: frontend
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: admission-service
+    spec:
+      template:
+        spec:
+          containers:
+          - name: admission-service
+            env:
+            - name: NEO4J_URI
+              value: "neo4j://neo4j.school-staging.svc.cluster.local:7687"
+  target:
+    kind: Deployment
+    name: admission-service
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: auth-service
+    spec:
+      template:
+        spec:
+          containers:
+          - name: auth-service
+            env:
+            - name: NEO4J_URI
+              value: "neo4j://neo4j.school-staging.svc.cluster.local:7687"
+  target:
+    kind: Deployment
+    name: auth-service
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: notification-service
+    spec:
+      template:
+        spec:
+          containers:
+          - name: notification-service
+            env:
+            - name: NEO4J_URI
+              value: "neo4j://neo4j.school-staging.svc.cluster.local:7687"
+  target:
+    kind: Deployment
+    name: notification-service
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: otp-service
+    spec:
+      template:
+        spec:
+          containers:
+          - name: otp-service
+            env:
+            - name: NEO4J_URI
+              value: "neo4j://neo4j.school-staging.svc.cluster.local:7687"
+  target:
+    kind: Deployment
+    name: otp-service
 
 images:
 - name: ghcr.io/cybe-asia/admission-services
   newName: ghcr.io/cybe-asia/admission-services
-  newTag: staging-latest
+  newTag: dev-9ebf50f
 - name: ghcr.io/cybe-asia/auth-services
   newName: ghcr.io/cybe-asia/auth-services
-  newTag: staging-latest
+  newTag: dev-79341be
 - name: ghcr.io/cybe-asia/digital-school-frontend
   newName: ghcr.io/cybe-asia/digital-school-frontend
-  newTag: release-v0.1-9ec1a1e
+  newTag: dev-09a3a9b
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
-  newTag: staging-latest
+  newTag: dev-a11e3e4
 - name: ghcr.io/cybe-asia/otp-services
   newName: ghcr.io/cybe-asia/otp-services
-  newTag: staging-latest
+  newTag: dev-e0cab3a

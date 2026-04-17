@@ -75,6 +75,70 @@ patches:
   target:
     kind: Deployment
     name: frontend
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: admission-service
+    spec:
+      template:
+        spec:
+          containers:
+          - name: admission-service
+            env:
+            - name: NEO4J_URI
+              value: "neo4j://neo4j.school-test.svc.cluster.local:7687"
+  target:
+    kind: Deployment
+    name: admission-service
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: auth-service
+    spec:
+      template:
+        spec:
+          containers:
+          - name: auth-service
+            env:
+            - name: NEO4J_URI
+              value: "neo4j://neo4j.school-test.svc.cluster.local:7687"
+  target:
+    kind: Deployment
+    name: auth-service
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: notification-service
+    spec:
+      template:
+        spec:
+          containers:
+          - name: notification-service
+            env:
+            - name: NEO4J_URI
+              value: "neo4j://neo4j.school-test.svc.cluster.local:7687"
+  target:
+    kind: Deployment
+    name: notification-service
+- patch: |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: otp-service
+    spec:
+      template:
+        spec:
+          containers:
+          - name: otp-service
+            env:
+            - name: NEO4J_URI
+              value: "neo4j://neo4j.school-test.svc.cluster.local:7687"
+  target:
+    kind: Deployment
+    name: otp-service
 
 images:
 - name: ghcr.io/cybe-asia/admission-services
