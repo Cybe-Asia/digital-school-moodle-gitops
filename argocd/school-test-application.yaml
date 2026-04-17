@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: school-test-services
+  namespace: platform-system
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Cybe-Asia/digital-school-gitops.git
+    targetRevision: dev
+    path: overlays/test
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: school-test
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
