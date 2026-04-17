@@ -25,9 +25,8 @@ spec:
           env:
             - name: SERVER_PORT
               value: "8084"
-            - name: NEO4J_URI
-              value: "neo4j://neo4j.school-dev.svc.cluster.local:7687"
-            - name: NEO4J_USER
-              value: "neo4j"
-            - name: NEO4J_PASSWORD
-              value: "password123"
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: app-secrets

@@ -25,19 +25,8 @@ spec:
           env:
             - name: SERVER_PORT
               value: "8082"
-            - name: NEO4J_URI
-              value: "neo4j://neo4j.school-dev.svc.cluster.local:7687"
-            - name: NEO4J_USER
-              value: "neo4j"
-            - name: NEO4J_PASSWORD
-              value: "password123"
-            - name: EMAIL_FROM
-              value: "no-reply@school.com"
-            - name: SMTP_HOST
-              value: "smtp.gmail.com"
-            - name: SMTP_PORT
-              value: "587"
-            - name: SMTP_USER
-              value: "your_email@gmail.com"
-            - name: SMTP_PASSWORD
-              value: "your_app_password"
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: app-secrets

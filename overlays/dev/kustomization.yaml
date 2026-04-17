@@ -13,6 +13,8 @@ resources:
 - ../../base/governance
 - ingress.yaml
 - resource-quota.yaml
+- app-config.yaml
+- app-secrets.yaml
 
 patches:
 - patch: |-
