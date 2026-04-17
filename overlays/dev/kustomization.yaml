@@ -90,7 +90,7 @@ images:
   newTag: dev-09a3a9b
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
-  newTag: dev-a11e3e4
+  newTag: sha-fc34a2e
 - name: ghcr.io/cybe-asia/otp-services
   newName: ghcr.io/cybe-asia/otp-services
   newTag: dev-e0cab3a
