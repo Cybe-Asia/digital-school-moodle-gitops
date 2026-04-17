@@ -10,7 +10,9 @@ resources:
 - ../../base/otp
 - ../../base/frontend
 - ../../base/neo4j
+- ../../base/governance
 - ingress.yaml
+- resource-quota.yaml
 
 patches:
 - patch: |-

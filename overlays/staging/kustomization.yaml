@@ -9,7 +9,9 @@ resources:
 - ../../base/notification
 - ../../base/otp
 - ../../base/frontend
+- ../../base/governance
 - ingress.yaml
+- resource-quota.yaml
 
 patches:
 - patch: |-
