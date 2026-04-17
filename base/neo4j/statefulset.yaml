@@ -34,6 +34,8 @@ spec:
           value: "true"
         - name: NEO4J_apoc_import_file_enabled
           value: "true"
+        - name: NEO4J_apoc_import_file_use__neo4j__config
+          value: "false"
         image: neo4j:5.15
         imagePullPolicy: IfNotPresent
         name: neo4j
