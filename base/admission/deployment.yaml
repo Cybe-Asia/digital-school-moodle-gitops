@@ -14,8 +14,6 @@ spec:
     spec:
       imagePullSecrets:
         - name: ghcr-secret
-      nodeSelector:
-        kubernetes.io/hostname: cybe-dell-r250-01
       containers:
         - name: admission-service
           image: ghcr.io/cybe-asia/admission-services
