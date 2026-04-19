@@ -88,7 +88,7 @@ images:
   newTag: sha-e8d1cbf
 - name: ghcr.io/cybe-asia/digital-school-frontend
   newName: ghcr.io/cybe-asia/digital-school-frontend
-  newTag: sha-f06fd52
+  newTag: sha-cf5f2b3
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
   newTag: sha-6e55e14
