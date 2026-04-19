@@ -1,0 +1,28 @@
+# ClusterIssuers live in a separate Argo app so they can sync AFTER
+# cert-manager CRDs exist. Sync Wave annotation handles this.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-issuers
+  namespace: platform-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"  # after cert-manager itself
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Cybe-Asia/digital-school-gitops.git
+    targetRevision: dev
+    path: platform/cert-manager
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
