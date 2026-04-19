@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: school-dev
 
 resources:
+- namespace.yaml
 - ../../base/admission
 - ../../base/auth
 - ../../base/notification

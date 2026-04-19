@@ -1,0 +1,69 @@
+# L5-S2: Enforce GitOps-only deployment on school-* namespaces.
+#
+# Blocks manual kubectl create/update/patch/delete on core workload kinds
+# in namespaces labelled domain=school. Only permitted:
+#   - argocd-application-controller service account (the GitOps engine)
+#   - sealed-secrets-controller service account (unseals into Secrets)
+#   - anyone in the system:masters group (cluster-admin break-glass)
+#
+# Uses ValidatingAdmissionPolicy (GA in k8s 1.30+). No external policy
+# engine required.
+#
+# Apply cluster-wide once:
+#   kubectl apply -f cluster-policies/gitops-only.yaml
+#
+# Not managed by ArgoCD — intentionally out-of-band, so a broken Argo
+# can't take down the policy that gates itself.
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: gitops-only-workloads
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["services", "configmaps", "persistentvolumeclaims"]
+      - apiGroups: ["networking.k8s.io"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["ingresses", "networkpolicies"]
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["jobs", "cronjobs"]
+      - apiGroups: ["bitnami.com"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE", "DELETE"]
+        resources: ["sealedsecrets"]
+  validations:
+    - expression: |
+        request.userInfo.username == 'system:serviceaccount:platform-system:argocd-application-controller' ||
+        request.userInfo.username == 'system:serviceaccount:platform-system:argocd-server' ||
+        request.userInfo.username == 'system:serviceaccount:kube-system:sealed-secrets-controller' ||
+        ('system:masters' in request.userInfo.groups)
+      messageExpression: |
+        'Direct ' + request.operation + ' on ' + request.resource.resource +
+        ' blocked. Submit a PR to Cybe-Asia/digital-school-gitops instead. ' +
+        '(caller: ' + request.userInfo.username + ')'
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: gitops-only-workloads-school
+spec:
+  policyName: gitops-only-workloads
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        domain: school

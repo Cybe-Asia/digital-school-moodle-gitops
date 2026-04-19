@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: school-staging
 
 resources:
+- namespace.yaml
 - ../../base/admission
 - ../../base/auth
 - ../../base/notification
