@@ -1,0 +1,80 @@
+# L2-S2: Domain-scoped Argo Project for school.
+#
+# Restricts every school-* Argo Application to:
+#   - sourcing from Cybe-Asia/digital-school-gitops only
+#   - deploying into school-* namespaces only (lab envs + prod colors)
+#   - creating only a defined set of resource kinds
+#
+# After merging this, edit each school-*-services Application to set
+# spec.project=school. Doing them all in one batch avoids a
+# half-migrated state where some apps point at 'default' and others
+# at 'school'.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: school
+  namespace: platform-system
+  # Finalizer lets Argo delete children when the project is deleted.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Digital School domain — lab (dev/test/staging) + prod (blue/green/routing)
+
+  sourceRepos:
+    - https://github.com/Cybe-Asia/digital-school-gitops.git
+    # Helm chart repos for any in-tree kustomize + Helm apps under school.
+    # Currently empty — extend as needed.
+
+  destinations:
+    - namespace: school-dev
+      server: https://kubernetes.default.svc
+    - namespace: school-test
+      server: https://kubernetes.default.svc
+    - namespace: school-staging
+      server: https://kubernetes.default.svc
+    - namespace: school-prod-blue
+      server: https://kubernetes.default.svc
+    - namespace: school-prod-green
+      server: https://kubernetes.default.svc
+    - namespace: school-prod-routing
+      server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: Service
+    - group: ""
+      kind: ConfigMap
+    - group: ""
+      kind: Secret
+    - group: ""
+      kind: ServiceAccount
+    - group: ""
+      kind: PersistentVolumeClaim
+    - group: apps
+      kind: Deployment
+    - group: apps
+      kind: StatefulSet
+    - group: apps
+      kind: DaemonSet
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+    - group: batch
+      kind: Job
+    - group: batch
+      kind: CronJob
+    - group: bitnami.com
+      kind: SealedSecret
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
+
+  # No orphaned resources allowed — catches manual drift fast.
+  orphanedResources:
+    warn: true
