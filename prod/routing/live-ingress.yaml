@@ -1,0 +1,166 @@
+# LIVE HOSTNAME — this is the file that flips during a blue/green
+# cutover. Today it points at school-prod-blue. To flip live traffic
+# to green:
+#
+#   1. Confirm green is healthy:   curl https://green.school.cybe.tech/
+#   2. Edit this file — replace every occurrence of
+#        service: <name>     # in the 'backend:' blocks
+#      where the ExternalName Service resolves to
+#        <svc>.school-prod-blue.svc.cluster.local
+#      with
+#        <svc>.school-prod-green.svc.cluster.local
+#   3. Submit PR. CODEOWNERS requires approval (this is a production
+#      ingress change).
+#   4. After merge, Argo syncs Traefik config. School.cybe.tech now
+#      resolves to green.
+#   5. Monitor for 30 minutes. Rollback = revert the PR.
+#
+# Note on implementation: this file is an Ingress + ExternalName
+# Service pattern. We run the live Ingress in the prod-routing
+# namespace and cross-namespace-reference the backend service via
+# ExternalName. That avoids moving the live Ingress between
+# namespaces during cutover.
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: school-prod-routing
+  labels:
+    domain: school
+    environment: prod
+    owner: devops
+
+---
+# ExternalName services that delegate to the currently-live color.
+# Edit .spec.externalName here to flip.
+apiVersion: v1
+kind: Service
+metadata:
+  name: live-auth-service
+  namespace: school-prod-routing
+spec:
+  type: ExternalName
+  externalName: auth-service.school-prod-blue.svc.cluster.local
+  ports:
+    - port: 80
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: live-admission-service
+  namespace: school-prod-routing
+spec:
+  type: ExternalName
+  externalName: admission-service.school-prod-blue.svc.cluster.local
+  ports:
+    - port: 80
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: live-notification-service
+  namespace: school-prod-routing
+spec:
+  type: ExternalName
+  externalName: notification-service.school-prod-blue.svc.cluster.local
+  ports:
+    - port: 80
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: live-otp-service
+  namespace: school-prod-routing
+spec:
+  type: ExternalName
+  externalName: otp-service.school-prod-blue.svc.cluster.local
+  ports:
+    - port: 80
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: live-frontend
+  namespace: school-prod-routing
+spec:
+  type: ExternalName
+  externalName: frontend.school-prod-blue.svc.cluster.local
+  ports:
+    - port: 80
+
+---
+# Live hostname — school.cybe.tech. Routes point at the ExternalName
+# services above, which in turn delegate to whichever color is live.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: school-live-ingress
+  namespace: school-prod-routing
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - school.cybe.tech
+      secretName: school-live-tls
+  rules:
+    - host: school.cybe.tech
+      http:
+        paths:
+          - path: /api/v1/auth-service
+            pathType: Prefix
+            backend:
+              service:
+                name: live-auth-service
+                port:
+                  number: 80
+          - path: /api/v1/googleLogin
+            pathType: Prefix
+            backend:
+              service:
+                name: live-auth-service
+                port:
+                  number: 80
+          - path: /api/v1/admission-service
+            pathType: Prefix
+            backend:
+              service:
+                name: live-admission-service
+                port:
+                  number: 80
+          - path: /api/leads/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: live-admission-service
+                port:
+                  number: 80
+          - path: /api/v1/otp-service
+            pathType: Prefix
+            backend:
+              service:
+                name: live-otp-service
+                port:
+                  number: 80
+          - path: /api/email/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: live-notification-service
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: live-frontend
+                port:
+                  number: 80
+

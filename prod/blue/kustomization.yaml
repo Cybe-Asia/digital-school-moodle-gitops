@@ -1,0 +1,58 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: school-prod-blue
+
+# NOTE: app-secrets-sealed.yaml and neo4j-secret-sealed.yaml are
+# intentionally missing. They must be sealed against the prod cluster's
+# sealed-secrets controller before first deploy. See
+# runbooks/prod-first-deploy.md. Kustomize build will fail until those
+# files land — this is deliberate; prod must not roll out with
+# placeholder secrets.
+
+resources:
+- namespace.yaml
+- ../../base/admission
+- ../../base/auth
+- ../../base/notification
+- ../../base/otp
+- ../../base/frontend
+- ../../base/neo4j
+- ../../base/governance
+- ingress.yaml
+- resource-quota.yaml
+- app-config.yaml
+- app-secrets-sealed.yaml
+- neo4j-secret-sealed.yaml
+
+replicas:
+- name: admission-service
+  count: 3
+- name: auth-service
+  count: 3
+- name: notification-service
+  count: 3
+- name: otp-service
+  count: 3
+- name: frontend
+  count: 3
+
+images:
+# Image tags default to current lab/staging pins. In practice, the
+# prod cutover procedure bumps these to the release candidate digest
+# via a separate PR once staging smoke tests pass.
+- name: ghcr.io/cybe-asia/admission-services
+  newName: ghcr.io/cybe-asia/admission-services
+  newTag: sha-3e922d7
+- name: ghcr.io/cybe-asia/auth-services
+  newName: ghcr.io/cybe-asia/auth-services
+  newTag: sha-5fe395a
+- name: ghcr.io/cybe-asia/digital-school-frontend
+  newName: ghcr.io/cybe-asia/digital-school-frontend
+  newTag: sha-cf5f2b3
+- name: ghcr.io/cybe-asia/notification-services
+  newName: ghcr.io/cybe-asia/notification-services
+  newTag: sha-3ca3b7f
+- name: ghcr.io/cybe-asia/otp-services
+  newName: ghcr.io/cybe-asia/otp-services
+  newTag: sha-ad733cd

@@ -22,7 +22,11 @@
 # Staging + production — stricter review expected. Add additional
 # reviewers here as the team grows.
 /lab/staging/ @ariefnugrahaaa
-/overlays/production/ @ariefnugrahaaa
+
+# Production — strictest review. Cutover-sensitive paths especially.
+/prod/blue/ @ariefnugrahaaa
+/prod/green/ @ariefnugrahaaa
+/prod/routing/ @ariefnugrahaaa
 
 # ArgoCD Application manifests — cluster-wiring, high-impact
 /argocd/ @ariefnugrahaaa

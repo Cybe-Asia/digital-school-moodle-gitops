@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: school-prod-green-services
+  namespace: platform-system
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Cybe-Asia/digital-school-gitops.git
+    targetRevision: dev
+    path: prod/green
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: school-prod-green
+  syncPolicy:
+    automated:
+      selfHeal: false
+      prune: false
+    syncOptions:
+      - CreateNamespace=true

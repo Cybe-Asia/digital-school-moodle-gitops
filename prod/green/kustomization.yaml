@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: school-prod-green
+
+# See prod/blue/kustomization.yaml — green is structurally identical;
+# secrets must be sealed against prod cluster's controller.
+
+resources:
+- namespace.yaml
+- ../../base/admission
+- ../../base/auth
+- ../../base/notification
+- ../../base/otp
+- ../../base/frontend
+- ../../base/neo4j
+- ../../base/governance
+- ingress.yaml
+- resource-quota.yaml
+- app-config.yaml
+- app-secrets-sealed.yaml
+- neo4j-secret-sealed.yaml
+
+replicas:
+- name: admission-service
+  count: 3
+- name: auth-service
+  count: 3
+- name: notification-service
+  count: 3
+- name: otp-service
+  count: 3
+- name: frontend
+  count: 3
+
+images:
+- name: ghcr.io/cybe-asia/admission-services
+  newName: ghcr.io/cybe-asia/admission-services
+  newTag: sha-3e922d7
+- name: ghcr.io/cybe-asia/auth-services
+  newName: ghcr.io/cybe-asia/auth-services
+  newTag: sha-5fe395a
+- name: ghcr.io/cybe-asia/digital-school-frontend
+  newName: ghcr.io/cybe-asia/digital-school-frontend
+  newTag: sha-cf5f2b3
+- name: ghcr.io/cybe-asia/notification-services
+  newName: ghcr.io/cybe-asia/notification-services
+  newTag: sha-3ca3b7f
+- name: ghcr.io/cybe-asia/otp-services
+  newName: ghcr.io/cybe-asia/otp-services
+  newTag: sha-ad733cd

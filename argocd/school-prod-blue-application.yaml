@@ -1,0 +1,28 @@
+# Template. Apply only after:
+#   1. cybe-prod cluster exists
+#   2. prod/blue/app-secrets-sealed.yaml + neo4j-secret-sealed.yaml
+#      have been sealed against the prod cluster's controller cert
+# See runbooks/prod-first-deploy.md.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: school-prod-blue-services
+  namespace: platform-system
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Cybe-Asia/digital-school-gitops.git
+    targetRevision: dev
+    path: prod/blue
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: school-prod-blue
+  syncPolicy:
+    automated:
+      # Manual sync only on prod — no self-heal surprises at 3am.
+      # To promote a new digest, operator runs:
+      #   argocd app sync school-prod-blue-services
+      selfHeal: false
+      prune: false
+    syncOptions:
+      - CreateNamespace=true

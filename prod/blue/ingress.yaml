@@ -1,13 +1,23 @@
+# Color-specific hostname — always points at blue, regardless of which
+# color is currently live. Used for smoke testing this color before
+# cutting over live traffic. See prod/routing/live-ingress.yaml for
+# the switchable live hostname.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: school-production-ingress
-  namespace: school-production
+  name: school-prod-blue-ingress
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - blue.school.cybe.tech
+      secretName: school-prod-blue-tls
   rules:
-    - http:
+    - host: blue.school.cybe.tech
+      http:
         paths:
           - path: /api/v1/auth-service
             pathType: Prefix
@@ -24,6 +34,13 @@ spec:
                 port:
                   number: 80
           - path: /api/v1/admission-service
+            pathType: Prefix
+            backend:
+              service:
+                name: admission-service
+                port:
+                  number: 80
+          - path: /api/leads/v1
             pathType: Prefix
             backend:
               service:
