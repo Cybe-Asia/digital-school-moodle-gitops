@@ -51,7 +51,12 @@ spec:
 
         grafana:
           enabled: true
-          adminPassword: "admin-change-me"
+          admin:
+            # Credentials sourced from the SealedSecret 'grafana-admin'
+            # in the monitoring namespace. See argocd/grafana-admin-sealed.yaml.
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
           defaultDashboardsTimezone: UTC
           service:
             type: ClusterIP
