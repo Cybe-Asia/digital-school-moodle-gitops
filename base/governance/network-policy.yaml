@@ -53,13 +53,21 @@ spec:
   policyTypes:
     - Ingress
   ingress:
+    # Two source blocks (OR-combined). Either one being true allows the
+    # traffic. This covers both the current Traefik location (k3s default,
+    # kube-system) AND the target location post-migration (ingress-system),
+    # so moving Traefik is non-breaking for app namespaces.
     - from:
-        # namespaceSelector + podSelector on the same list item are
-        # AND-combined: the source must be a Traefik pod (by label) AND
-        # in the kube-system namespace.
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-system
           podSelector:
             matchLabels:
               app.kubernetes.io/name: traefik

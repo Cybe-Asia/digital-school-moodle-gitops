@@ -1,0 +1,18 @@
+# Platform namespace for the cluster ingress controller.
+# Per Roadmap §2.1 L1-S1 / Architecture §4.
+#
+# Traefik currently lives in kube-system (k3s default). The migration
+# to this namespace is documented in runbooks/traefik-migrate-to-ingress-system.md
+# and requires a scheduled maintenance window.
+#
+# NetworkPolicies in lab/* and prod/* already permit traffic from
+# EITHER kube-system (today) OR ingress-system (post-migration),
+# so the actual move is non-breaking for app namespaces.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-system
+  labels:
+    domain: platform
+    role: ingress
+    owner: devops
