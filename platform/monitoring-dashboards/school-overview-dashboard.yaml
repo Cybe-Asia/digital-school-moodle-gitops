@@ -1,0 +1,134 @@
+# Grafana auto-imports ConfigMaps with label 'grafana_dashboard: "1"'
+# via its sidecar. Dropping this in the monitoring namespace is enough.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: school-overview-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  school-overview.json: |
+    {
+      "annotations": {"list": []},
+      "editable": true,
+      "graphTooltip": 0,
+      "schemaVersion": 39,
+      "title": "School Domain Overview",
+      "uid": "school-overview",
+      "tags": ["school", "lab"],
+      "time": {"from": "now-1h", "to": "now"},
+      "refresh": "30s",
+      "timezone": "UTC",
+      "templating": {
+        "list": [
+          {
+            "name": "namespace",
+            "type": "query",
+            "datasource": {"type": "prometheus", "uid": "prometheus"},
+            "query": "label_values(kube_namespace_created{namespace=~\"school-.*\"}, namespace)",
+            "includeAll": true,
+            "allValue": "school-.*",
+            "refresh": 1
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "CPU usage by namespace",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\", container!=\"\"}[5m]))",
+              "legendFormat": "{{namespace}}"
+            }
+          ],
+          "fieldConfig": {"defaults": {"unit": "short"}}
+        },
+        {
+          "id": 2,
+          "title": "Memory working set by namespace",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "sum by (namespace) (container_memory_working_set_bytes{namespace=~\"$namespace\", container!=\"\"})",
+              "legendFormat": "{{namespace}}"
+            }
+          ],
+          "fieldConfig": {"defaults": {"unit": "bytes"}}
+        },
+        {
+          "id": 3,
+          "title": "Pod restarts (last 1h) by namespace",
+          "type": "stat",
+          "gridPos": {"h": 6, "w": 12, "x": 0, "y": 8},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "sum by (namespace) (increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h]))",
+              "legendFormat": "{{namespace}}"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "PVC utilisation",
+          "type": "bargauge",
+          "gridPos": {"h": 6, "w": 12, "x": 12, "y": 8},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "kubelet_volume_stats_used_bytes{namespace=~\"$namespace\"} / kubelet_volume_stats_capacity_bytes{namespace=~\"$namespace\"}",
+              "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 0.7},
+                  {"color": "red", "value": 0.85}
+                ]
+              },
+              "max": 1,
+              "min": 0
+            }
+          }
+        },
+        {
+          "id": 5,
+          "title": "Pods by status in school-*",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 14},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "sum by (namespace, phase) (kube_pod_status_phase{namespace=~\"school-.*\", phase!=\"Succeeded\"})",
+              "legendFormat": "{{namespace}} / {{phase}}"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Quota usage vs ceiling",
+          "type": "table",
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 22},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [
+            {
+              "expr": "kube_resourcequota{namespace=~\"school-.*\"}",
+              "format": "table",
+              "instant": true
+            }
+          ]
+        }
+      ]
+    }
