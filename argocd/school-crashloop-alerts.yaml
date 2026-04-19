@@ -1,0 +1,81 @@
+# Domain-specific alert rules for the school namespaces, on top of the
+# chart's default rule set. Applied cluster-wide by Prometheus because
+# ruleSelectorNilUsesHelmValues=false in the chart values.
+#
+# These are the L9/L8-S2 'CrashLoopBackOff / disk pressure / node memory'
+# thresholds the doc calls for, scoped to our domain.
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: school-operational-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: monitoring-stack
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: school.workloads
+      interval: 30s
+      rules:
+        - alert: SchoolPodCrashLoopBackOff
+          expr: |
+            max_over_time(
+              kube_pod_container_status_waiting_reason{
+                namespace=~"school-.*",
+                reason="CrashLoopBackOff"
+              }[5m]
+            ) > 0
+          for: 2m
+          labels:
+            severity: critical
+            domain: school
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} in CrashLoopBackOff"
+            description: "{{ $labels.pod }} has been in CrashLoopBackOff for over 2 minutes."
+
+        - alert: SchoolPVCAlmostFull
+          expr: |
+            (kubelet_volume_stats_used_bytes{namespace=~"school-.*"}
+             / kubelet_volume_stats_capacity_bytes{namespace=~"school-.*"}) > 0.85
+          for: 10m
+          labels:
+            severity: warning
+            domain: school
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} above 85%"
+            description: "Volume utilisation {{ $value | humanizePercentage }}. Neo4j data or backups likely the cause."
+
+        - alert: SchoolNamespaceQuotaExhausting
+          expr: |
+            (kube_resourcequota{namespace=~"school-.*", type="used", resource=~"requests.cpu|requests.memory"}
+             / ignoring(instance) kube_resourcequota{namespace=~"school-.*", type="hard", resource=~"requests.cpu|requests.memory"}) > 0.90
+          for: 10m
+          labels:
+            severity: warning
+            domain: school
+          annotations:
+            summary: "Quota {{ $labels.resource }} in {{ $labels.namespace }} above 90%"
+            description: "Namespace is close to its ResourceQuota ceiling. Pods may fail to schedule."
+
+        - alert: SchoolNeo4jDown
+          expr: up{namespace=~"school-.*", pod=~"neo4j-.*"} == 0
+          for: 3m
+          labels:
+            severity: critical
+            domain: school
+          annotations:
+            summary: "Neo4j down in {{ $labels.namespace }}"
+            description: "Neo4j bolt endpoint has been unreachable for 3 minutes. Backend services will fail."
+
+        - alert: SchoolBackupJobFailed
+          expr: |
+            kube_job_status_failed{namespace=~"school-.*", job_name=~"neo4j-backup-.*"} > 0
+          for: 5m
+          labels:
+            severity: warning
+            domain: school
+          annotations:
+            summary: "Neo4j backup Job failed in {{ $labels.namespace }}"
+            description: "Daily backup CronJob failure detected. Recovery capability compromised."

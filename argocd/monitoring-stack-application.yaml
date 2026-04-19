@@ -1,0 +1,147 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-stack
+  namespace: platform-system
+spec:
+  project: default
+  source:
+    chart: kube-prometheus-stack
+    repoURL: https://prometheus-community.github.io/helm-charts
+    targetRevision: 65.8.1
+    helm:
+      releaseName: kube-prometheus-stack
+      valuesObject:
+        # Lab-scale tuning: small footprint, short retention.
+        # Revise for Phase 2 production.
+        fullnameOverride: kps
+
+        # CRDs via chart — kept managed, easier than ServerSideApply
+        crds:
+          enabled: true
+
+        defaultRules:
+          create: true
+          rules:
+            # Keep the curated default alerts but disable the noisier
+            # groups that don't apply to a single-node-ish lab.
+            etcd: false
+            kubeApiserverSlos: false
+            kubeSchedulerAlerting: false
+
+        alertmanager:
+          enabled: true
+          alertmanagerSpec:
+            retention: 120h
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  storageClassName: local-path
+                  resources:
+                    requests:
+                      storage: 2Gi
+            resources:
+              requests:
+                cpu: 20m
+                memory: 64Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+
+        grafana:
+          enabled: true
+          adminPassword: "admin-change-me"
+          defaultDashboardsTimezone: UTC
+          service:
+            type: ClusterIP
+          ingress:
+            enabled: true
+            ingressClassName: traefik
+            hosts:
+              - grafana.lab.cybe.tech
+            paths:
+              - /
+          persistence:
+            enabled: true
+            storageClassName: local-path
+            size: 2Gi
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+        prometheus:
+          enabled: true
+          prometheusSpec:
+            retention: 7d
+            retentionSize: 8GB
+            scrapeInterval: 30s
+            evaluationInterval: 30s
+            # Select all ServiceMonitors and PodMonitors cluster-wide,
+            # not just ones with a chart-specific label. Teams can drop
+            # ServiceMonitor CRs in their own namespaces without
+            # touching this config.
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  storageClassName: local-path
+                  resources:
+                    requests:
+                      storage: 10Gi
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                cpu: 1000m
+                memory: 2Gi
+
+        kube-state-metrics:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+        prometheus-node-exporter:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+
+        # Features tuned off for lab: we don't manage etcd/scheduler/cm
+        # ourselves on k3s (components live on the host, not as pods),
+        # so their ServiceMonitors would flap.
+        kubeEtcd:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeProxy:
+          enabled: false
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
