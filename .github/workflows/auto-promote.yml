@@ -214,6 +214,7 @@ jobs:
           fi
 
       - name: External smoke test — idle color
+        id: idle_smoke
         run: |
           color="${{ steps.color.outputs.idle }}"
           url="https://${color}.school.cybe.tech:8443/"
@@ -225,22 +226,155 @@ jobs:
           done
           [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || { echo "::error::smoke test failed on $url"; exit 1; }
 
-      - name: Summary
+      # ── AUTO-CUTOVER ───────────────────────────────────────────────
+      # After the idle color is Healthy + smoke-passed, flip live
+      # routing to it. Single bot-authored commit on main; Argo auto-
+      # syncs prod/routing (~30s); Traefik reloads; live traffic
+      # switches colors.
+      - name: Auto-cutover (flip routing)
+        id: cutover
+        run: |
+          set -eu
+          current_live="${{ steps.color.outputs.live }}"
+          new_live="${{ steps.color.outputs.idle }}"
+          echo "flipping live: school-prod-${current_live} → school-prod-${new_live}"
+          sed -i "s|school-prod-${current_live}\.svc\.cluster\.local|school-prod-${new_live}.svc.cluster.local|g" prod/routing/live-ingress.yaml
+          if git diff --quiet prod/routing/live-ingress.yaml; then
+            echo "::warning::routing file unchanged — cutover may have already happened"
+            exit 0
+          fi
+          git add prod/routing/live-ingress.yaml
+          git commit -m "auto-cutover: school.cybe.tech ${current_live} → ${new_live} [skip promote] [skip ci]"
+          cutover_sha=$(git rev-parse HEAD)
+          git push origin main
+          echo "cutover_sha=${cutover_sha}" >> "$GITHUB_OUTPUT"
+          echo "cutover commit: ${cutover_sha}"
+
+      - name: Wait for Argo to sync routing
+        run: |
+          # school-prod-routing has auto-sync ON, takes ~30s for Traefik to reload
+          sleep 45
+
+      # ── POST-CUTOVER SOAK ─────────────────────────────────────────
+      # 5 minutes of external probing + pod-health sanity checks on
+      # the newly-live color. If the new color fails to serve real
+      # requests, trigger the auto-rollback step below.
+      - name: Post-cutover soak (5 min)
+        id: soak
+        env:
+          ARGOCD_URL: ${{ secrets.ARGOCD_URL }}
+          ARGOCD_TOKEN: ${{ steps.argo.outputs.token }}
+          HAVE_TOKEN: ${{ steps.argo.outputs.have_token }}
+        run: |
+          set -u
+          new_live="${{ steps.color.outputs.idle }}"
+          live_url="https://school.cybe.tech:8443/"
+          color_url="https://${new_live}.school.cybe.tech:8443/"
+
+          http_failures=0
+          argo_failures=0
+          probes=20   # 20 × 15s = 5 minutes
+
+          for i in $(seq 1 $probes); do
+            live_code=$(curl -sk --max-time 10 -o /dev/null -w "%{http_code}" "$live_url" || echo "000")
+            color_code=$(curl -sk --max-time 10 -o /dev/null -w "%{http_code}" "$color_url" || echo "000")
+
+            live_ok="n"; color_ok="n"
+            case "$live_code"  in 200|301|302|303) live_ok="y"  ;; esac
+            case "$color_code" in 200|301|302|303) color_ok="y" ;; esac
+            [ "$live_ok"  = "n" ] && http_failures=$((http_failures + 1))
+            [ "$color_ok" = "n" ] && http_failures=$((http_failures + 1))
+
+            argo_state="unknown"
+            if [ "$HAVE_TOKEN" = "true" ]; then
+              argo_state=$(curl -sk -H "Authorization: Bearer $ARGOCD_TOKEN" \
+                "$ARGOCD_URL/api/v1/applications/school-prod-${new_live}-services" | \
+                jq -r '"\(.status.sync.status)/\(.status.health.status)"')
+              [ "$argo_state" != "Synced/Healthy" ] && argo_failures=$((argo_failures + 1))
+            fi
+
+            echo "probe $i/$probes  live=$live_code  ${new_live}=$color_code  argo=$argo_state  (fails http=$http_failures argo=$argo_failures)"
+            sleep 15
+          done
+
+          # Acceptance: at most 3 HTTP failures (intermittent network)
+          # and at most 2 Argo-state blips
+          if [ "$http_failures" -gt 3 ]; then
+            echo "::error::$http_failures HTTP probe failures (>3 allowed)"
+            exit 1
+          fi
+          if [ "$argo_failures" -gt 2 ]; then
+            echo "::error::$argo_failures Argo state failures (>2 allowed)"
+            exit 1
+          fi
+          echo "soak PASSED  http_failures=$http_failures  argo_failures=$argo_failures"
+
+      # ── AUTO-ROLLBACK ─────────────────────────────────────────────
+      # Fires only if: cutover succeeded AND soak failed. Reverts the
+      # cutover commit → Argo re-syncs → live traffic flips back to
+      # the previous color. Idle pods (new version) keep running
+      # for post-mortem.
+      - name: Auto-rollback (soak failed)
+        if: failure() && steps.cutover.outcome == 'success' && steps.soak.outcome == 'failure'
+        run: |
+          set -e
+          git config user.email "ci-bot@cybe-asia.github"
+          git config user.name "CI Bot"
+          git revert --no-edit ${{ steps.cutover.outputs.cutover_sha }}
+          git push origin main
+          echo "::warning::ROLLED BACK — live traffic returned to prod-${{ steps.color.outputs.live }}. Post-mortem on prod-${{ steps.color.outputs.idle }} (idle)."
+
+      - name: Summary (success)
+        if: success()
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
-          ## ✅ Auto-promote complete
+          ## ✅ Release complete — cutover succeeded
 
-          Image cascaded through:
-          - lab/dev  → lab/test
-          - lab/test → lab/staging  (smoke test passed)
-          - lab/staging → prod/${{ steps.color.outputs.idle }}  (idle color, smoke test passed)
+          **Live color now: prod-${{ steps.color.outputs.idle }}** (was prod-${{ steps.color.outputs.live }})
 
-          **Live traffic still on prod-${{ steps.color.outputs.live }}.**
+          Pipeline:
+          - lab/dev ✅
+          - lab/test ✅
+          - lab/staging ✅ (smoke passed)
+          - prod/${{ steps.color.outputs.idle }} ✅ (Synced + Healthy + smoke passed)
+          - **routing cutover ✅** (\`prod/routing/live-ingress.yaml\` commit ${{ steps.cutover.outputs.cutover_sha }})
+          - post-cutover soak ✅ (5 min, external HTTP + Argo health)
 
-          ### Cutover
-          To switch live traffic to ${{ steps.color.outputs.idle }}, open a PR editing
-          \`prod/routing/live-ingress.yaml\` — change all 5 ExternalName values from
-          \`*.school-prod-${{ steps.color.outputs.live }}.svc.cluster.local\` to
-          \`*.school-prod-${{ steps.color.outputs.idle }}.svc.cluster.local\`. Merge
-          → ArgoCD syncs → live traffic flips within 60s. Rollback = revert the PR.
+          prod-${{ steps.color.outputs.live }} is now idle — standby for rollback.
+          Next release will deploy into prod-${{ steps.color.outputs.live }} (the new idle).
+          EOF
+
+      - name: Summary (rolled back)
+        if: steps.cutover.outcome == 'success' && steps.soak.outcome == 'failure'
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## ⚠️ Release rolled back
+
+          Cutover to prod-${{ steps.color.outputs.idle }} succeeded, but
+          post-cutover soak failed. Live traffic has been reverted to
+          **prod-${{ steps.color.outputs.live }}**.
+
+          prod-${{ steps.color.outputs.idle }} pods are still running at
+          the attempted new version — inspect them for root cause
+          before the next retry.
+
+          Investigation:
+          - Grafana: https://grafana.cybe.tech:8443/
+          - ArgoCD: https://argo.cybe.tech:8443/applications/school-prod-${{ steps.color.outputs.idle }}-services
+          - Pods: \`kubectl get pods -n school-prod-${{ steps.color.outputs.idle }}\`
+          EOF
+
+      - name: Summary (halted before cutover)
+        if: failure() && steps.cutover.outcome != 'success'
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## ⚠️ Pipeline halted before cutover
+
+          Promotion failed at an earlier step — cutover did NOT happen.
+          Live traffic remains on **prod-${{ steps.color.outputs.live }}** (unchanged).
+
+          Check the failed step above for root cause. Once fixed, the
+          next push to service-repo main re-runs the whole cascade.
+
+          No manual cutover needed — auto-cutover is built in.
           EOF

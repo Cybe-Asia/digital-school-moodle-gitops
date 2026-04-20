@@ -1,6 +1,6 @@
 # Auto-promote pipeline
 
-Pushes in service repos cascade through **lab/dev → lab/test → lab/staging → prod/(idle)** automatically. Only the final live-traffic cutover is manual.
+Pushes in service repos cascade **all the way to live production** with zero human intervention. The pipeline deploys to the idle prod color, flips routing automatically, then soaks the new live color for 5 minutes and auto-rolls-back if it breaks.
 
 ## End-to-end timeline
 
@@ -9,13 +9,17 @@ t=0         git push main in a service repo
 t≈2 min     service CI done → bumps gitops main lab/dev
 t≈2 min     auto-promote workflow starts (.github/workflows/auto-promote.yml)
 t≈5 min     lab/dev committed → lab/test; waiting school-test Healthy
-t≈8 min     lab/test Healthy → lab/test committed → lab/staging; waiting staging Healthy + smoke
-t≈12 min    staging smoke passed → committed → prod/(idle color)
+t≈8 min     lab/test Healthy → lab/staging; waiting staging Healthy + smoke
+t≈12 min    staging smoke passed → prod/(idle color)
 t≈16 min    prod/(idle) Healthy + external smoke passed
-t≈16 min    YOU get a green summary in GH Actions with a ready-to-merge cutover note
-t≈??        YOU merge a 5-line PR flipping prod/routing/live-ingress.yaml
-t≈??+1min   live traffic on new color
+t≈16 min    AUTO-CUTOVER: prod/routing/live-ingress.yaml flipped → Argo syncs → Traefik reloads
+t≈17 min    live traffic on new color; old color goes idle
+t≈17-22 min post-cutover soak: 5 min of external HTTP + Argo health probes
+t≈22 min    soak passed → release complete
+            (OR) soak failed → AUTO-ROLLBACK: revert cutover commit, live reverts to previous color
 ```
+
+**Total: ~22 min from `git push` to validated-live, zero clicks.**
 
 ## What it does
 
@@ -28,16 +32,19 @@ t≈??+1min   live traffic on new color
 7. Commits to `prod/<idle>/kustomization.yaml`.
 8. Waits for ArgoCD `school-prod-<idle>-services` Healthy.
 9. External smoke-test: `curl https://<idle>.school.cybe.tech:8443/` — must return 2xx/3xx.
-10. Posts a summary with the exact cutover PR instructions.
-
-Any step failure → workflow fails → promotion halts at that point → previous envs keep running on their previous image. Safe.
+10. **Auto-cutover**: sed-rewrites `prod/routing/live-ingress.yaml` externalName values to point at the new color; bot commits + pushes.
+11. Waits 45s for Argo to sync routing + Traefik reload.
+12. **Post-cutover soak**: 20 probes × 15s = 5 minutes. Measures HTTP against both `school.cybe.tech:8443` (live) and `<new-color>.school.cybe.tech:8443`. Also polls Argo health on the new-live color. Tolerates up to 3 HTTP blips + 2 Argo state blips.
+13. If soak passes → success summary, release complete.
+14. If soak fails → **auto-rollback**: revert the cutover commit, Argo re-syncs, live traffic returns to previous color. Failed-color pods stay running for post-mortem.
 
 ## What's still manual
 
-**Cutover.** You still merge a PR to `prod/routing/live-ingress.yaml` to switch live traffic from current color to the new color. This preserves:
-- Human-gated production traffic switch
-- Ability to sit on prod/(idle) for a while and smoke-test more thoroughly
-- Easy rollback by reverting the cutover PR
+**Nothing, on the happy path.** Operator clicks = 0.
+
+Human intervention is only required when:
+- Earlier pipeline steps fail (smoke test, Argo health) — pipeline halts before cutover. Debug, fix, push again.
+- Soak fails and auto-rollback triggers — inspect logs, figure out what broke, fix, push again.
 
 ## Required GitHub secrets
 
