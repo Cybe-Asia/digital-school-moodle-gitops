@@ -82,7 +82,7 @@ patches:
 images:
 - name: ghcr.io/cybe-asia/admission-services
   newName: ghcr.io/cybe-asia/admission-services
-  newTag: sha-167cc44
+  newTag: sha-d559aad
 - name: ghcr.io/cybe-asia/auth-services
   newName: ghcr.io/cybe-asia/auth-services
   newTag: sha-fb22d5d
