@@ -38,6 +38,34 @@ replicas:
 - name: frontend
   count: 3
 
+patches:
+- patch: |-
+    # Feature flags (Unleash) — bound to the PRODUCTION Unleash
+    # environment. All flags default OFF unless explicitly enabled in
+    # the Unleash UI for environment=production.
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: UNLEASH_URL
+        value: "http://unleash.unleash.svc.cluster.local:4242/api/frontend"
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: UNLEASH_ENVIRONMENT
+        value: "production"
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: UNLEASH_FRONTEND_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: unleash-frontend-token
+            key: token
+            optional: true
+  target:
+    kind: Deployment
+    name: frontend
+
 images:
 # Image tags default to current lab/staging pins. In practice, the
 # prod cutover procedure bumps these to the release candidate digest

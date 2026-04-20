@@ -82,6 +82,29 @@ patches:
   target:
     kind: Service
     name: frontend
+- patch: |-
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: UNLEASH_URL
+        value: "http://unleash.unleash.svc.cluster.local:4242/api/frontend"
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: UNLEASH_ENVIRONMENT
+        value: "staging"
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: UNLEASH_FRONTEND_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: unleash-frontend-token
+            key: token
+            optional: true
+  target:
+    kind: Deployment
+    name: frontend
 images:
 - name: ghcr.io/cybe-asia/admission-services
   newName: ghcr.io/cybe-asia/admission-services

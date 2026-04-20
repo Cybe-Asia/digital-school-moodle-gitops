@@ -75,6 +75,30 @@ patches:
       value:
         name: API_GATEWAY_URL
         value: "http://traefik.kube-system.svc.cluster.local"
+    # Feature flags (Unleash). UNLEASH_FRONTEND_TOKEN is pulled from
+    # the sealed secret `unleash-frontend-token` — admin must seal the
+    # token (scoped to environment=test) before the frontend pod can
+    # start with flags enabled. Without the secret, frontend still
+    # boots and runs in "disabled" mode, using code defaults.
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: UNLEASH_URL
+        value: "http://unleash.unleash.svc.cluster.local:4242/api/frontend"
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: UNLEASH_ENVIRONMENT
+        value: "test"
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: UNLEASH_FRONTEND_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: unleash-frontend-token
+            key: token
+            optional: true
   target:
     kind: Deployment
     name: frontend
