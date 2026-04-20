@@ -1,42 +1,71 @@
 # Auto-promote pipeline
 
-Pushes in service repos cascade **all the way to live production** with zero human intervention. The pipeline deploys to the idle prod color, flips routing automatically, then soaks the new live color for 5 minutes and auto-rolls-back if it breaks.
+Pushes in service repos cascade **all the way to live production** with zero human intervention. The pipeline is split across two workflows that chain together:
 
-## End-to-end timeline
+- `.github/workflows/auto-promote-lab.yml` — cascades lab/dev → lab/test → lab/staging, stops at lab/staging
+- `.github/workflows/auto-promote-prod.yml` — cascades lab/staging → prod/(idle color), auto-cutover, 5-min soak, auto-rollback
+
+The lab workflow's final commit to `lab/staging/kustomization.yaml` triggers the prod workflow. Both carry `[skip promote]` on their own commits to avoid recursion.
+
+## Two push paths, both end at prod
+
+### Path A — push to service repo `main` (daily work)
+
+1. Service CI builds image, bumps `lab/dev/kustomization.yaml`
+2. **auto-promote-lab** fires → cascades to lab/test → lab/staging
+3. Final lab/staging commit triggers **auto-promote-prod**
+4. auto-promote-prod → prod/(idle) → cutover → soak → live
+
+Full cascade, ~22 min end-to-end.
+
+### Path B — push to service repo `release-*` branch (hotfix / staging-first)
+
+1. Service CI builds image, bumps `lab/staging/kustomization.yaml` directly (skipping lab/dev + lab/test)
+2. **auto-promote-prod** fires on that lab/staging commit
+3. Same prod → cutover → soak → live
+
+Faster path (~10 min), bypasses lab validation. Use for emergencies.
+
+## End-to-end timeline (Path A)
 
 ```
 t=0         git push main in a service repo
 t≈2 min     service CI done → bumps gitops main lab/dev
-t≈2 min     auto-promote workflow starts (.github/workflows/auto-promote.yml)
+t≈2 min     auto-promote-lab starts
 t≈5 min     lab/dev committed → lab/test; waiting school-test Healthy
 t≈8 min     lab/test Healthy → lab/staging; waiting staging Healthy + smoke
-t≈12 min    staging smoke passed → prod/(idle color)
-t≈16 min    prod/(idle) Healthy + external smoke passed
-t≈16 min    AUTO-CUTOVER: prod/routing/live-ingress.yaml flipped → Argo syncs → Traefik reloads
-t≈17 min    live traffic on new color; old color goes idle
-t≈17-22 min post-cutover soak: 5 min of external HTTP + Argo health probes
-t≈22 min    soak passed → release complete
-            (OR) soak failed → AUTO-ROLLBACK: revert cutover commit, live reverts to previous color
+t≈12 min    staging smoke passed → lab workflow DONE
+t≈12 min    lab/staging commit triggers auto-promote-prod
+t≈15 min    prod/(idle) Healthy + external smoke passed
+t≈15 min    AUTO-CUTOVER: prod/routing/live-ingress.yaml flipped → Argo syncs → Traefik reloads
+t≈16 min    live traffic on new color; old color goes idle
+t≈16-21 min post-cutover soak: 5 min of external HTTP + Argo health probes
+t≈21 min    soak passed → release complete
+            (OR) soak failed → AUTO-ROLLBACK: revert cutover commit, live reverts
 ```
 
 **Total: ~22 min from `git push` to validated-live, zero clicks.**
 
-## What it does
+## What each workflow does
 
-1. Reads image tags in `lab/dev/kustomization.yaml` (whatever the service CI just bumped).
-2. Commits matching tags to `lab/test/kustomization.yaml`.
-3. Waits for ArgoCD `school-test-services` to report Synced + Healthy.
-4. Commits to `lab/staging/kustomization.yaml`.
-5. Waits for ArgoCD `school-staging-services` Healthy — this gates on the PostSync smoke Job.
-6. Reads `prod/routing/live-ingress.yaml` to figure out which color is **idle** (blue or green).
-7. Commits to `prod/<idle>/kustomization.yaml`.
-8. Waits for ArgoCD `school-prod-<idle>-services` Healthy.
-9. External smoke-test: `curl https://<idle>.school.cybe.tech:8443/` — must return 2xx/3xx.
-10. **Auto-cutover**: sed-rewrites `prod/routing/live-ingress.yaml` externalName values to point at the new color; bot commits + pushes.
-11. Waits 45s for Argo to sync routing + Traefik reload.
-12. **Post-cutover soak**: 20 probes × 15s = 5 minutes. Measures HTTP against both `school.cybe.tech:8443` (live) and `<new-color>.school.cybe.tech:8443`. Also polls Argo health on the new-live color. Tolerates up to 3 HTTP blips + 2 Argo state blips.
-13. If soak passes → success summary, release complete.
-14. If soak fails → **auto-rollback**: revert the cutover commit, Argo re-syncs, live traffic returns to previous color. Failed-color pods stay running for post-mortem.
+### auto-promote-lab
+1. Reads image tags in `lab/dev/kustomization.yaml`
+2. Commits matching tags to `lab/test/kustomization.yaml`
+3. Waits for ArgoCD `school-test-services` Synced + Healthy
+4. Commits to `lab/staging/kustomization.yaml` (this commit INTENTIONALLY omits `[skip promote]` so the prod workflow picks it up)
+5. Waits for ArgoCD `school-staging-services` Healthy (gates on the PostSync smoke Job)
+
+### auto-promote-prod
+6. Reads `prod/routing/live-ingress.yaml` to figure out which color is **idle**
+7. Reads image tags in `lab/staging/kustomization.yaml` (whether set by auto-promote-lab or by a `release-*` push)
+8. Commits to `prod/<idle>/kustomization.yaml`
+9. Waits for ArgoCD `school-prod-<idle>-services` Healthy
+10. External smoke-test: `curl https://<idle>.school.cybe.tech:8443/` must return 2xx/3xx
+11. **Auto-cutover**: sed-rewrites `prod/routing/live-ingress.yaml` externalName values → bot commits + pushes
+12. Waits 45s for Argo to sync routing + Traefik to reload
+13. **Post-cutover soak**: 20 probes × 15s = 5 min. HTTP against both `school.cybe.tech:8443` and `<new-color>.school.cybe.tech:8443`, plus Argo health. Tolerates ≤3 HTTP blips + ≤2 Argo blips.
+14. If soak passes → success summary
+15. If soak fails → **auto-rollback**: revert cutover commit, Argo re-syncs, live reverts to previous color
 
 ## What's still manual
 

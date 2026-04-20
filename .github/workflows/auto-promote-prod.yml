@@ -1,22 +1,27 @@
-name: auto-promote
+name: auto-promote-prod
 
-# Cascades an image-tag bump in lab/dev/kustomization.yaml all the way
-# to prod/<idle-color>/kustomization.yaml, gating on ArgoCD health
-# between each step. The final routing cutover is NOT touched — a human
-# still clicks merge on a prod/routing PR to move live traffic.
+# Stage 2 of 2: cascade from lab/staging into prod/<idle color>, then
+# auto-cutover routing, then 5-min post-cutover soak, with auto-rollback
+# on soak failure.
 #
-# Triggered automatically when any service CI job commits a
-# "chore(...): bump lab/dev to sha-XXXX [skip ci]" to main. The
-# [skip promote] tag on our own commits prevents an infinite loop.
+# Trigger: push to main that modified lab/staging/kustomization.yaml —
+# either:
+#   (a) sibling auto-promote-lab.yml committed an image-tag bump after
+#       the lab cascade completed
+#   (b) service CI pushed to a release-* branch which directly bumps
+#       lab/staging (bypasses lab/dev + lab/test, goes straight to
+#       staging → prod)
+#
+# Our own commits carry [skip promote] to prevent recursion.
 
 on:
   push:
     branches: [main]
     paths:
-      - 'lab/dev/kustomization.yaml'
+      - 'lab/staging/kustomization.yaml'
 
 concurrency:
-  group: auto-promote
+  group: auto-promote-prod
   cancel-in-progress: false
 
 jobs:
@@ -25,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    timeout-minutes: 40
+    timeout-minutes: 25
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
@@ -58,101 +63,6 @@ jobs:
             echo "token=$token" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Promote lab/dev → lab/test
-        run: |
-          set -eu
-          cd lab/test
-          changed=0
-          while read -r image; do
-            dev_tag=$(awk -v img="- name: $image$" '$0 ~ img {getline; getline; print; exit}' ../dev/kustomization.yaml | sed 's/.*newTag: //')
-            if [ -n "$dev_tag" ]; then
-              kustomize edit set image "${image}=${image}:${dev_tag}"
-              echo "  $image → $dev_tag"
-              changed=1
-            fi
-          done <<'EOF'
-          ghcr.io/cybe-asia/admission-services
-          ghcr.io/cybe-asia/auth-services
-          ghcr.io/cybe-asia/digital-school-frontend
-          ghcr.io/cybe-asia/notification-services
-          ghcr.io/cybe-asia/otp-services
-          EOF
-          if [ "$changed" = "1" ] && ! git diff --quiet kustomization.yaml; then
-            git add kustomization.yaml
-            git commit -m "auto-promote: lab/dev → lab/test [skip promote] [skip ci]"
-            git push origin main
-          else
-            echo "no diff — lab/test already at lab/dev digests"
-          fi
-
-      - name: Wait for school-test Healthy
-        env:
-          ARGOCD_URL: ${{ secrets.ARGOCD_URL }}
-          ARGOCD_TOKEN: ${{ steps.argo.outputs.token }}
-          HAVE_TOKEN: ${{ steps.argo.outputs.have_token }}
-        run: |
-          if [ "$HAVE_TOKEN" = "true" ]; then
-            for i in $(seq 1 40); do
-              status=$(curl -sk -H "Authorization: Bearer $ARGOCD_TOKEN" \
-                "$ARGOCD_URL/api/v1/applications/school-test-services" | \
-                jq -r '"\(.status.sync.status)/\(.status.health.status)"')
-              echo "attempt $i: $status"
-              [ "$status" = "Synced/Healthy" ] && break
-              sleep 15
-            done
-            [ "$status" = "Synced/Healthy" ] || { echo "::error::school-test did not go Healthy"; exit 1; }
-          else
-            echo "no argo token, sleeping 4 minutes"
-            sleep 240
-          fi
-
-      - name: Promote lab/test → lab/staging
-        run: |
-          set -eu
-          cd lab/staging
-          changed=0
-          while read -r image; do
-            tag=$(awk -v img="- name: $image$" '$0 ~ img {getline; getline; print; exit}' ../test/kustomization.yaml | sed 's/.*newTag: //')
-            if [ -n "$tag" ]; then
-              kustomize edit set image "${image}=${image}:${tag}"
-              echo "  $image → $tag"
-              changed=1
-            fi
-          done <<'EOF'
-          ghcr.io/cybe-asia/admission-services
-          ghcr.io/cybe-asia/auth-services
-          ghcr.io/cybe-asia/digital-school-frontend
-          ghcr.io/cybe-asia/notification-services
-          ghcr.io/cybe-asia/otp-services
-          EOF
-          if [ "$changed" = "1" ] && ! git diff --quiet kustomization.yaml; then
-            git add kustomization.yaml
-            git commit -m "auto-promote: lab/test → lab/staging [skip promote] [skip ci]"
-            git push origin main
-          else
-            echo "no diff — lab/staging already at lab/test digests"
-          fi
-
-      - name: Wait for school-staging Healthy (includes smoke test)
-        env:
-          ARGOCD_URL: ${{ secrets.ARGOCD_URL }}
-          ARGOCD_TOKEN: ${{ steps.argo.outputs.token }}
-          HAVE_TOKEN: ${{ steps.argo.outputs.have_token }}
-        run: |
-          if [ "$HAVE_TOKEN" = "true" ]; then
-            for i in $(seq 1 40); do
-              status=$(curl -sk -H "Authorization: Bearer $ARGOCD_TOKEN" \
-                "$ARGOCD_URL/api/v1/applications/school-staging-services" | \
-                jq -r '"\(.status.sync.status)/\(.status.health.status)"')
-              echo "attempt $i: $status"
-              [ "$status" = "Synced/Healthy" ] && break
-              sleep 15
-            done
-            [ "$status" = "Synced/Healthy" ] || { echo "::error::school-staging smoke failed — promotion HALTED"; exit 1; }
-          else
-            sleep 300
-          fi
-
       - name: Determine idle prod color
         id: color
         run: |
@@ -164,6 +74,7 @@ jobs:
             echo "live=green" >> "$GITHUB_OUTPUT"
             echo "idle=blue" >> "$GITHUB_OUTPUT"
           fi
+          echo "live=$(cat $GITHUB_OUTPUT | grep ^live= | cut -d= -f2)  idle=$(cat $GITHUB_OUTPUT | grep ^idle= | cut -d= -f2)"
 
       - name: Promote lab/staging → prod/${{ steps.color.outputs.idle }}
         run: |
@@ -226,11 +137,6 @@ jobs:
           done
           [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || { echo "::error::smoke test failed on $url"; exit 1; }
 
-      # ── AUTO-CUTOVER ───────────────────────────────────────────────
-      # After the idle color is Healthy + smoke-passed, flip live
-      # routing to it. Single bot-authored commit on main; Argo auto-
-      # syncs prod/routing (~30s); Traefik reloads; live traffic
-      # switches colors.
       - name: Auto-cutover (flip routing)
         id: cutover
         run: |
@@ -251,14 +157,8 @@ jobs:
           echo "cutover commit: ${cutover_sha}"
 
       - name: Wait for Argo to sync routing
-        run: |
-          # school-prod-routing has auto-sync ON, takes ~30s for Traefik to reload
-          sleep 45
+        run: sleep 45
 
-      # ── POST-CUTOVER SOAK ─────────────────────────────────────────
-      # 5 minutes of external probing + pod-health sanity checks on
-      # the newly-live color. If the new color fails to serve real
-      # requests, trigger the auto-rollback step below.
       - name: Post-cutover soak (5 min)
         id: soak
         env:
@@ -273,7 +173,7 @@ jobs:
 
           http_failures=0
           argo_failures=0
-          probes=20   # 20 × 15s = 5 minutes
+          probes=20
 
           for i in $(seq 1 $probes); do
             live_code=$(curl -sk --max-time 10 -o /dev/null -w "%{http_code}" "$live_url" || echo "000")
@@ -297,8 +197,6 @@ jobs:
             sleep 15
           done
 
-          # Acceptance: at most 3 HTTP failures (intermittent network)
-          # and at most 2 Argo-state blips
           if [ "$http_failures" -gt 3 ]; then
             echo "::error::$http_failures HTTP probe failures (>3 allowed)"
             exit 1
@@ -309,11 +207,6 @@ jobs:
           fi
           echo "soak PASSED  http_failures=$http_failures  argo_failures=$argo_failures"
 
-      # ── AUTO-ROLLBACK ─────────────────────────────────────────────
-      # Fires only if: cutover succeeded AND soak failed. Reverts the
-      # cutover commit → Argo re-syncs → live traffic flips back to
-      # the previous color. Idle pods (new version) keep running
-      # for post-mortem.
       - name: Auto-rollback (soak failed)
         if: failure() && steps.cutover.outcome == 'success' && steps.soak.outcome == 'failure'
         run: |
@@ -328,20 +221,16 @@ jobs:
         if: success()
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
-          ## ✅ Release complete — cutover succeeded
+          ## ✅ Release complete — prod cutover succeeded
 
           **Live color now: prod-${{ steps.color.outputs.idle }}** (was prod-${{ steps.color.outputs.live }})
 
-          Pipeline:
-          - lab/dev ✅
-          - lab/test ✅
-          - lab/staging ✅ (smoke passed)
+          Prod pipeline:
           - prod/${{ steps.color.outputs.idle }} ✅ (Synced + Healthy + smoke passed)
-          - **routing cutover ✅** (\`prod/routing/live-ingress.yaml\` commit ${{ steps.cutover.outputs.cutover_sha }})
-          - post-cutover soak ✅ (5 min, external HTTP + Argo health)
+          - routing cutover ✅ (commit ${{ steps.cutover.outputs.cutover_sha }})
+          - post-cutover soak ✅ (5 min)
 
           prod-${{ steps.color.outputs.live }} is now idle — standby for rollback.
-          Next release will deploy into prod-${{ steps.color.outputs.live }} (the new idle).
           EOF
 
       - name: Summary (rolled back)
@@ -350,31 +239,20 @@ jobs:
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
           ## ⚠️ Release rolled back
 
-          Cutover to prod-${{ steps.color.outputs.idle }} succeeded, but
-          post-cutover soak failed. Live traffic has been reverted to
-          **prod-${{ steps.color.outputs.live }}**.
+          Cutover to prod-${{ steps.color.outputs.idle }} succeeded but
+          soak failed. Live traffic is back on **prod-${{ steps.color.outputs.live }}**.
 
-          prod-${{ steps.color.outputs.idle }} pods are still running at
-          the attempted new version — inspect them for root cause
-          before the next retry.
-
-          Investigation:
+          Investigate prod-${{ steps.color.outputs.idle }} pods:
           - Grafana: https://grafana.cybe.tech:8443/
           - ArgoCD: https://argo.cybe.tech:8443/applications/school-prod-${{ steps.color.outputs.idle }}-services
-          - Pods: \`kubectl get pods -n school-prod-${{ steps.color.outputs.idle }}\`
           EOF
 
       - name: Summary (halted before cutover)
         if: failure() && steps.cutover.outcome != 'success'
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
-          ## ⚠️ Pipeline halted before cutover
+          ## ⚠️ Prod cascade halted before cutover
 
-          Promotion failed at an earlier step — cutover did NOT happen.
-          Live traffic remains on **prod-${{ steps.color.outputs.live }}** (unchanged).
-
-          Check the failed step above for root cause. Once fixed, the
-          next push to service-repo main re-runs the whole cascade.
-
-          No manual cutover needed — auto-cutover is built in.
+          Prod deploy or smoke test failed. Live traffic remains on
+          **prod-${{ steps.color.outputs.live }}** (unchanged).
           EOF

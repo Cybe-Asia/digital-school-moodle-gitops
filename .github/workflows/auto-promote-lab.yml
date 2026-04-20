@@ -1,0 +1,173 @@
+name: auto-promote-lab
+
+# Stage 1 of 2: cascade an image-tag bump through lab/dev → lab/test →
+# lab/staging, gating on ArgoCD health. STOPS at lab/staging.
+#
+# The bump it commits to lab/staging/kustomization.yaml then triggers
+# the sibling workflow auto-promote-prod.yml, which handles staging →
+# prod/<idle> + cutover + soak + auto-rollback.
+#
+# Trigger: push to main that modified lab/dev/kustomization.yaml — i.e.
+# the service-CI bot's image-tag bump. Our own commits carry
+# [skip promote] so we don't recurse.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lab/dev/kustomization.yaml'
+
+concurrency:
+  group: auto-promote-lab
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: "!contains(github.event.head_commit.message, '[skip promote]')"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 25
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITOPS_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Git identity
+        run: |
+          git config user.email "ci-bot@cybe-asia.github"
+          git config user.name "CI Bot"
+
+      - name: Helper — get ArgoCD session token
+        id: argo
+        run: |
+          token=$(curl -sk -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"username\":\"${{ secrets.ARGOCD_USERNAME }}\",\"password\":\"${{ secrets.ARGOCD_PASSWORD }}\"}" \
+            "${{ secrets.ARGOCD_URL }}/api/v1/session" | jq -r '.token')
+          if [ -z "$token" ] || [ "$token" = "null" ]; then
+            echo "::warning::Failed to get ArgoCD token; will use sleep-based waits"
+            echo "have_token=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_token=true" >> "$GITHUB_OUTPUT"
+            echo "::add-mask::$token"
+            echo "token=$token" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Promote lab/dev → lab/test
+        run: |
+          set -eu
+          cd lab/test
+          changed=0
+          while read -r image; do
+            dev_tag=$(awk -v img="- name: $image$" '$0 ~ img {getline; getline; print; exit}' ../dev/kustomization.yaml | sed 's/.*newTag: //')
+            if [ -n "$dev_tag" ]; then
+              kustomize edit set image "${image}=${image}:${dev_tag}"
+              echo "  $image → $dev_tag"
+              changed=1
+            fi
+          done <<'EOF'
+          ghcr.io/cybe-asia/admission-services
+          ghcr.io/cybe-asia/auth-services
+          ghcr.io/cybe-asia/digital-school-frontend
+          ghcr.io/cybe-asia/notification-services
+          ghcr.io/cybe-asia/otp-services
+          EOF
+          if [ "$changed" = "1" ] && ! git diff --quiet kustomization.yaml; then
+            git add kustomization.yaml
+            git commit -m "auto-promote: lab/dev → lab/test [skip promote] [skip ci]"
+            git push origin main
+          else
+            echo "no diff — lab/test already at lab/dev digests"
+          fi
+
+      - name: Wait for school-test Healthy
+        env:
+          ARGOCD_URL: ${{ secrets.ARGOCD_URL }}
+          ARGOCD_TOKEN: ${{ steps.argo.outputs.token }}
+          HAVE_TOKEN: ${{ steps.argo.outputs.have_token }}
+        run: |
+          if [ "$HAVE_TOKEN" = "true" ]; then
+            for i in $(seq 1 40); do
+              status=$(curl -sk -H "Authorization: Bearer $ARGOCD_TOKEN" \
+                "$ARGOCD_URL/api/v1/applications/school-test-services" | \
+                jq -r '"\(.status.sync.status)/\(.status.health.status)"')
+              echo "attempt $i: $status"
+              [ "$status" = "Synced/Healthy" ] && break
+              sleep 15
+            done
+            [ "$status" = "Synced/Healthy" ] || { echo "::error::school-test did not go Healthy"; exit 1; }
+          else
+            echo "no argo token, sleeping 4 minutes"
+            sleep 240
+          fi
+
+      - name: Promote lab/test → lab/staging
+        run: |
+          set -eu
+          cd lab/staging
+          changed=0
+          while read -r image; do
+            tag=$(awk -v img="- name: $image$" '$0 ~ img {getline; getline; print; exit}' ../test/kustomization.yaml | sed 's/.*newTag: //')
+            if [ -n "$tag" ]; then
+              kustomize edit set image "${image}=${image}:${tag}"
+              echo "  $image → $tag"
+              changed=1
+            fi
+          done <<'EOF'
+          ghcr.io/cybe-asia/admission-services
+          ghcr.io/cybe-asia/auth-services
+          ghcr.io/cybe-asia/digital-school-frontend
+          ghcr.io/cybe-asia/notification-services
+          ghcr.io/cybe-asia/otp-services
+          EOF
+          # The lab/staging commit deliberately does NOT carry
+          # [skip promote] — it's what triggers the sibling
+          # auto-promote-prod workflow. [skip ci] still present to keep
+          # service-repo CI from re-running.
+          if [ "$changed" = "1" ] && ! git diff --quiet kustomization.yaml; then
+            git add kustomization.yaml
+            git commit -m "auto-promote: lab/test → lab/staging [skip ci]"
+            git push origin main
+          else
+            echo "no diff — lab/staging already at lab/test digests"
+          fi
+
+      - name: Wait for school-staging Healthy (includes smoke test)
+        env:
+          ARGOCD_URL: ${{ secrets.ARGOCD_URL }}
+          ARGOCD_TOKEN: ${{ steps.argo.outputs.token }}
+          HAVE_TOKEN: ${{ steps.argo.outputs.have_token }}
+        run: |
+          if [ "$HAVE_TOKEN" = "true" ]; then
+            for i in $(seq 1 40); do
+              status=$(curl -sk -H "Authorization: Bearer $ARGOCD_TOKEN" \
+                "$ARGOCD_URL/api/v1/applications/school-staging-services" | \
+                jq -r '"\(.status.sync.status)/\(.status.health.status)"')
+              echo "attempt $i: $status"
+              [ "$status" = "Synced/Healthy" ] && break
+              sleep 15
+            done
+            [ "$status" = "Synced/Healthy" ] || { echo "::error::school-staging smoke failed — promotion HALTED"; exit 1; }
+          else
+            sleep 300
+          fi
+
+      - name: Summary
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## ✅ Lab cascade complete
+
+          - lab/dev ✅
+          - lab/test ✅ (Synced + Healthy)
+          - lab/staging ✅ (Synced + Healthy, smoke passed)
+
+          Sibling workflow **auto-promote-prod** will pick up from here
+          automatically — triggered by the lab/staging commit above.
+          EOF
