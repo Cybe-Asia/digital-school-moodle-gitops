@@ -17,6 +17,7 @@ resources:
 - app-config.yaml
 - app-secrets-sealed.yaml
 - neo4j-secret-sealed.yaml
+- unleash-frontend-token.sealed.yaml
 
 patches:
 - patch: |-

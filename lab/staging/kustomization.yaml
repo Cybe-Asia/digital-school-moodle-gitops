@@ -18,6 +18,7 @@ resources:
 - app-secrets-sealed.yaml
 - neo4j-secret-sealed.yaml
 - smoke-test-job.yaml
+- unleash-frontend-token.sealed.yaml
 
 replicas:
 - name: admission-service
@@ -92,7 +93,9 @@ patches:
       path: /spec/template/spec/containers/0/env/-
       value:
         name: UNLEASH_ENVIRONMENT
-        value: "staging"
+        # Unleash OSS restriction: map lab/staging to Unleash "development"
+        # env along with dev and test. Upgrade to Pro/Enterprise to separate.
+        value: "development"
     - op: add
       path: /spec/template/spec/containers/0/env/-
       value:

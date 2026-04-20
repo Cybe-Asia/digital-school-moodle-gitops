@@ -1,0 +1,15 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  creationTimestamp: null
+  name: unleash-frontend-token
+  namespace: school-dev
+spec:
+  encryptedData:
+    token: AgBekA04dQnkzLF7f7IUFSmOMEuz8QFQh6Q8g6NJMmeKr6GbSwwDRRNOtt1B6W3B+t1yTFkQWfc7NR93IGbOXNWawdP9xUWFLnMp6s7934whBQYihHfEoQ6WJUx2SInaFo73YciE7VBmFJkHy/F+gShW+qMFAV+oopzmrezL9dHfdNFybCTF7Vp+i/8Sa+QkGxFtKADix9nati9K0aZoPmFO+X0mNI7WcY+2dTwd4EXzRAT6Zzy1OcBZL1XvwyPQS9IaRSwEP/duybiXzMmu9RMUFjDCkolcZeGdMox0ciwBTkw/KkcgWYLmCI1OQRBzrf3LDh/dzErguP39giuvYvMCu9oilNkPzwTdj7Vx1mHyuum6GZCyTGWkiekP/UUMe01cvLJ6Bc3z4VN9h8Ue/riGHJ/nY1x1OtvcQ2xE5f5HqffaXKx42IsTCTAwITWtKaoMUS/vRxl55R+klqNbNF8ae02YCHBIDs800keGMVl9AD91xrzLKuYu2GTEHDmMuJlbYaAanyYz4u8XBry+AaU6NfBDtDguWPemekWSemrZDdtMo8QJRvyvsNbtybiQDYpMP5Y0Qc3KTk6WIui1G9n6b+S6U+sd6zKgvAOxSRw/s7MXaRyKqe4Rfg+ZMUoEqfSn1KGO4/ORa/1JvumczDKauz3mNPcQqHYJ6L23CpiDEbdLptaF/gRfiBPVzaB4yj5BRSWygzkB340tf6bpm6GxbSsdp+qhjtjBwjiO2zamSVz/vv15VFewLtgo69w4VT6tgByQ0apLldokv+5cyQlCdNVFEFgX
+  template:
+    metadata:
+      creationTimestamp: null
+      name: unleash-frontend-token
+      namespace: school-dev

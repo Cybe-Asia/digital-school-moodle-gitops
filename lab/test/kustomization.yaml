@@ -17,6 +17,7 @@ resources:
 - app-config.yaml
 - app-secrets-sealed.yaml
 - neo4j-secret-sealed.yaml
+- unleash-frontend-token.sealed.yaml
 
 patches:
 - patch: |-
@@ -89,7 +90,11 @@ patches:
       path: /spec/template/spec/containers/0/env/-
       value:
         name: UNLEASH_ENVIRONMENT
-        value: "test"
+        # Unleash OSS supports only built-in environments (development,
+        # production). All lab envs (dev/test/staging) map to Unleash's
+        # "development" — same flag state in Unleash flips buttons across
+        # the entire lab cluster. Prod uses "production" so it's isolated.
+        value: "development"
     - op: add
       path: /spec/template/spec/containers/0/env/-
       value:
