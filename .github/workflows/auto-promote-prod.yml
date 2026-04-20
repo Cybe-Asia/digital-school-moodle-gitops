@@ -19,6 +19,18 @@ on:
     branches: [main]
     paths:
       - 'lab/staging/kustomization.yaml'
+  workflow_dispatch:
+    # Manual trigger from GitHub Actions UI. Use this to promote the
+    # CURRENT state of lab/staging to prod — useful when:
+    #   • staging/** branch landed with [skip promote] and UAT passed,
+    #     and you want to ship WITHOUT a fresh rebuild via main/release-*
+    #   • emergency: roll the prod idle color to whatever lab/staging
+    #     currently pins (e.g. after rollback, re-promote a known-good)
+    inputs:
+      reason:
+        description: "Why are you manually promoting? (audit trail)"
+        required: true
+        type: string
 
 concurrency:
   group: auto-promote-prod
@@ -26,12 +38,30 @@ concurrency:
 
 jobs:
   promote:
-    if: "!contains(github.event.head_commit.message, '[skip promote]')"
+    # Gate: block auto-runs when commit carries [skip promote], but
+    # ALWAYS allow manual workflow_dispatch runs (the whole point of
+    # manual trigger is to bypass the automatic skip).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      !contains(github.event.head_commit.message, '[skip promote]')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     timeout-minutes: 25
     steps:
+      - name: Log manual trigger (audit)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          {
+            echo "## 🖱️ Manual promote triggered"
+            echo ""
+            echo "- Actor: **${{ github.actor }}**"
+            echo "- Reason: **${{ github.event.inputs.reason }}**"
+            echo "- Timestamp: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo ""
+            echo "Promoting current state of \`lab/staging\` to idle prod color."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Checkout main
         uses: actions/checkout@v4
         with:

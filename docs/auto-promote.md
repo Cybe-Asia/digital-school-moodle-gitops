@@ -52,9 +52,11 @@ Use this for:
 - Demo-ing a feature on staging to stakeholders without shipping to prod
 - Load-testing an image in the staging namespace (which has prod-like quotas) without exposing users
 
-**Differs from `release-*` purely by the `[skip promote]` marker.** Same overlay, same namespace. When UAT passes, either:
-- Re-push the same image with a `release-*` branch to trigger the prod cascade, OR
-- Merge the branch to `main` and let the normal lab-cascade carry it through
+**Differs from `release-*` purely by the `[skip promote]` marker.** Same overlay, same namespace. When UAT passes, three paths to prod:
+
+1. **Merge to `main` (recommended)** — full lab-cascade rebuilds the image and re-verifies through dev → test → staging → prod. ~22 min. Best audit trail.
+2. **Cut `release-x.y.z` from the staging branch** — rebuild, then staging → prod (skips dev/test). ~10 min. Fast path when you want a fresh build but not lab re-verification.
+3. **Manual `workflow_dispatch` on `auto-promote-prod`** — re-uses the EXACT image already in `lab/staging` (no rebuild). ~7 min. Use this when you need the byte-identical image that was UAT'd to be what ships. Requires a `reason` input for audit. Trigger from GitHub Actions tab → `auto-promote-prod` → "Run workflow".
 
 **Caveat:** the next `release-*` push or any `main` merge that cascades to lab/staging will overwrite the staging pin. Treat staging/* pins as ephemeral too.
 
