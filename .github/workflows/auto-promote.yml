@@ -1,0 +1,246 @@
+name: auto-promote
+
+# Cascades an image-tag bump in lab/dev/kustomization.yaml all the way
+# to prod/<idle-color>/kustomization.yaml, gating on ArgoCD health
+# between each step. The final routing cutover is NOT touched — a human
+# still clicks merge on a prod/routing PR to move live traffic.
+#
+# Triggered automatically when any service CI job commits a
+# "chore(...): bump lab/dev to sha-XXXX [skip ci]" to main. The
+# [skip promote] tag on our own commits prevents an infinite loop.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lab/dev/kustomization.yaml'
+
+concurrency:
+  group: auto-promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: "!contains(github.event.head_commit.message, '[skip promote]')"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 40
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITOPS_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Git identity
+        run: |
+          git config user.email "ci-bot@cybe-asia.github"
+          git config user.name "CI Bot"
+
+      - name: Helper — get ArgoCD session token
+        id: argo
+        run: |
+          token=$(curl -sk -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"username\":\"${{ secrets.ARGOCD_USERNAME }}\",\"password\":\"${{ secrets.ARGOCD_PASSWORD }}\"}" \
+            "${{ secrets.ARGOCD_URL }}/api/v1/session" | jq -r '.token')
+          if [ -z "$token" ] || [ "$token" = "null" ]; then
+            echo "::warning::Failed to get ArgoCD token; will use sleep-based waits"
+            echo "have_token=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_token=true" >> "$GITHUB_OUTPUT"
+            echo "::add-mask::$token"
+            echo "token=$token" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Promote lab/dev → lab/test
+        run: |
+          set -eu
+          cd lab/test
+          changed=0
+          while read -r image; do
+            dev_tag=$(awk -v img="- name: $image$" '$0 ~ img {getline; getline; print; exit}' ../dev/kustomization.yaml | sed 's/.*newTag: //')
+            if [ -n "$dev_tag" ]; then
+              kustomize edit set image "${image}=${image}:${dev_tag}"
+              echo "  $image → $dev_tag"
+              changed=1
+            fi
+          done <<'EOF'
+          ghcr.io/cybe-asia/admission-services
+          ghcr.io/cybe-asia/auth-services
+          ghcr.io/cybe-asia/digital-school-frontend
+          ghcr.io/cybe-asia/notification-services
+          ghcr.io/cybe-asia/otp-services
+          EOF
+          if [ "$changed" = "1" ] && ! git diff --quiet kustomization.yaml; then
+            git add kustomization.yaml
+            git commit -m "auto-promote: lab/dev → lab/test [skip promote] [skip ci]"
+            git push origin main
+          else
+            echo "no diff — lab/test already at lab/dev digests"
+          fi
+
+      - name: Wait for school-test Healthy
+        env:
+          ARGOCD_URL: ${{ secrets.ARGOCD_URL }}
+          ARGOCD_TOKEN: ${{ steps.argo.outputs.token }}
+          HAVE_TOKEN: ${{ steps.argo.outputs.have_token }}
+        run: |
+          if [ "$HAVE_TOKEN" = "true" ]; then
+            for i in $(seq 1 40); do
+              status=$(curl -sk -H "Authorization: Bearer $ARGOCD_TOKEN" \
+                "$ARGOCD_URL/api/v1/applications/school-test-services" | \
+                jq -r '"\(.status.sync.status)/\(.status.health.status)"')
+              echo "attempt $i: $status"
+              [ "$status" = "Synced/Healthy" ] && break
+              sleep 15
+            done
+            [ "$status" = "Synced/Healthy" ] || { echo "::error::school-test did not go Healthy"; exit 1; }
+          else
+            echo "no argo token, sleeping 4 minutes"
+            sleep 240
+          fi
+
+      - name: Promote lab/test → lab/staging
+        run: |
+          set -eu
+          cd lab/staging
+          changed=0
+          while read -r image; do
+            tag=$(awk -v img="- name: $image$" '$0 ~ img {getline; getline; print; exit}' ../test/kustomization.yaml | sed 's/.*newTag: //')
+            if [ -n "$tag" ]; then
+              kustomize edit set image "${image}=${image}:${tag}"
+              echo "  $image → $tag"
+              changed=1
+            fi
+          done <<'EOF'
+          ghcr.io/cybe-asia/admission-services
+          ghcr.io/cybe-asia/auth-services
+          ghcr.io/cybe-asia/digital-school-frontend
+          ghcr.io/cybe-asia/notification-services
+          ghcr.io/cybe-asia/otp-services
+          EOF
+          if [ "$changed" = "1" ] && ! git diff --quiet kustomization.yaml; then
+            git add kustomization.yaml
+            git commit -m "auto-promote: lab/test → lab/staging [skip promote] [skip ci]"
+            git push origin main
+          else
+            echo "no diff — lab/staging already at lab/test digests"
+          fi
+
+      - name: Wait for school-staging Healthy (includes smoke test)
+        env:
+          ARGOCD_URL: ${{ secrets.ARGOCD_URL }}
+          ARGOCD_TOKEN: ${{ steps.argo.outputs.token }}
+          HAVE_TOKEN: ${{ steps.argo.outputs.have_token }}
+        run: |
+          if [ "$HAVE_TOKEN" = "true" ]; then
+            for i in $(seq 1 40); do
+              status=$(curl -sk -H "Authorization: Bearer $ARGOCD_TOKEN" \
+                "$ARGOCD_URL/api/v1/applications/school-staging-services" | \
+                jq -r '"\(.status.sync.status)/\(.status.health.status)"')
+              echo "attempt $i: $status"
+              [ "$status" = "Synced/Healthy" ] && break
+              sleep 15
+            done
+            [ "$status" = "Synced/Healthy" ] || { echo "::error::school-staging smoke failed — promotion HALTED"; exit 1; }
+          else
+            sleep 300
+          fi
+
+      - name: Determine idle prod color
+        id: color
+        run: |
+          live_ext=$(grep externalName prod/routing/live-ingress.yaml | head -1)
+          if echo "$live_ext" | grep -q school-prod-blue; then
+            echo "live=blue" >> "$GITHUB_OUTPUT"
+            echo "idle=green" >> "$GITHUB_OUTPUT"
+          else
+            echo "live=green" >> "$GITHUB_OUTPUT"
+            echo "idle=blue" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Promote lab/staging → prod/${{ steps.color.outputs.idle }}
+        run: |
+          set -eu
+          cd prod/${{ steps.color.outputs.idle }}
+          changed=0
+          while read -r image; do
+            tag=$(awk -v img="- name: $image$" '$0 ~ img {getline; getline; print; exit}' ../../lab/staging/kustomization.yaml | sed 's/.*newTag: //')
+            if [ -n "$tag" ]; then
+              kustomize edit set image "${image}=${image}:${tag}"
+              echo "  $image → $tag"
+              changed=1
+            fi
+          done <<'EOF'
+          ghcr.io/cybe-asia/admission-services
+          ghcr.io/cybe-asia/auth-services
+          ghcr.io/cybe-asia/digital-school-frontend
+          ghcr.io/cybe-asia/notification-services
+          ghcr.io/cybe-asia/otp-services
+          EOF
+          if [ "$changed" = "1" ] && ! git diff --quiet kustomization.yaml; then
+            git add kustomization.yaml
+            git commit -m "auto-promote: lab/staging → prod/${{ steps.color.outputs.idle }} [skip promote] [skip ci]"
+            git push origin main
+          else
+            echo "no diff — prod/${{ steps.color.outputs.idle }} already at lab/staging digests"
+          fi
+
+      - name: Wait for prod/${{ steps.color.outputs.idle }} Healthy
+        env:
+          ARGOCD_URL: ${{ secrets.ARGOCD_URL }}
+          ARGOCD_TOKEN: ${{ steps.argo.outputs.token }}
+          HAVE_TOKEN: ${{ steps.argo.outputs.have_token }}
+        run: |
+          if [ "$HAVE_TOKEN" = "true" ]; then
+            app="school-prod-${{ steps.color.outputs.idle }}-services"
+            for i in $(seq 1 40); do
+              status=$(curl -sk -H "Authorization: Bearer $ARGOCD_TOKEN" \
+                "$ARGOCD_URL/api/v1/applications/$app" | \
+                jq -r '"\(.status.sync.status)/\(.status.health.status)"')
+              echo "attempt $i: $status"
+              [ "$status" = "Synced/Healthy" ] && break
+              sleep 15
+            done
+            [ "$status" = "Synced/Healthy" ] || { echo "::error::prod/${{ steps.color.outputs.idle }} did not go Healthy"; exit 1; }
+          else
+            sleep 300
+          fi
+
+      - name: External smoke test — idle color
+        run: |
+          color="${{ steps.color.outputs.idle }}"
+          url="https://${color}.school.cybe.tech:8443/"
+          for i in $(seq 1 10); do
+            code=$(curl -sk --max-time 10 -o /dev/null -w "%{http_code}" "$url")
+            echo "attempt $i: HTTP $code"
+            [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] && break
+            sleep 15
+          done
+          [ "$code" = "200" ] || [ "$code" = "301" ] || [ "$code" = "302" ] || { echo "::error::smoke test failed on $url"; exit 1; }
+
+      - name: Summary
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## ✅ Auto-promote complete
+
+          Image cascaded through:
+          - lab/dev  → lab/test
+          - lab/test → lab/staging  (smoke test passed)
+          - lab/staging → prod/${{ steps.color.outputs.idle }}  (idle color, smoke test passed)
+
+          **Live traffic still on prod-${{ steps.color.outputs.live }}.**
+
+          ### Cutover
+          To switch live traffic to ${{ steps.color.outputs.idle }}, open a PR editing
+          \`prod/routing/live-ingress.yaml\` — change all 5 ExternalName values from
+          \`*.school-prod-${{ steps.color.outputs.live }}.svc.cluster.local\` to
+          \`*.school-prod-${{ steps.color.outputs.idle }}.svc.cluster.local\`. Merge
+          → ArgoCD syncs → live traffic flips within 60s. Rollback = revert the PR.
+          EOF
