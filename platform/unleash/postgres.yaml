@@ -1,0 +1,116 @@
+# PostgreSQL backing store for Unleash.
+#
+# Single replica — this is an admin tool DB, a couple of seconds of
+# unavailability during pod restart is fine. If Unleash goes down, the
+# client SDKs serve the LAST KNOWN flag state from their local cache
+# (default 10s TTL, but stale-on-error), so end-users are not impacted.
+#
+# Persistent volume ensures flag state survives pod restarts and node
+# maintenance. Daily backup via CronJob (see postgres-backup-cronjob).
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: unleash-postgres-data
+  namespace: unleash
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unleash-postgres
+  namespace: unleash
+  labels:
+    app.kubernetes.io/name: unleash-postgres
+    app.kubernetes.io/component: database
+spec:
+  replicas: 1
+  strategy:
+    # Recreate — PV is RWO, can't run two pods concurrently
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: unleash-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: unleash-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16.3-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: unleash
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: unleash-postgres-credentials
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: unleash-postgres-credentials
+                  key: password
+            # Postgres wants its data dir as a subdirectory of the
+            # mount so lost+found from ext4 doesn't break init.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+                - -d
+                - unleash
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+                - -d
+                - unleash
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: unleash-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unleash-postgres
+  namespace: unleash
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: unleash-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

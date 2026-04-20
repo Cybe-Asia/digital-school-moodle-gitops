@@ -1,0 +1,65 @@
+# NetworkPolicy for the unleash namespace.
+#
+# Rules:
+#   1. Unleash server: allow ingress from Traefik (for UI) + all school-*
+#      namespaces (for SDK client calls).
+#   2. Postgres: allow ingress ONLY from unleash server pod in same
+#      namespace. No external access.
+#
+# Egress is left default-allow (Unleash needs to reach postgres, DNS).
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: unleash-server-ingress
+  namespace: unleash
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: unleash
+  policyTypes:
+    - Ingress
+  ingress:
+    # Traefik (kube-system namespace) for UI access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 4242
+    # School namespaces — for SDK client connections from app pods
+    - from:
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  - school-dev
+                  - school-test
+                  - school-staging
+                  - school-prod-blue
+                  - school-prod-green
+      ports:
+        - protocol: TCP
+          port: 4242
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: unleash-postgres-ingress
+  namespace: unleash
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: unleash-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: unleash
+      ports:
+        - protocol: TCP
+          port: 5432

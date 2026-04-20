@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: unleash
+  labels:
+    app.kubernetes.io/name: unleash
+    app.kubernetes.io/component: feature-flags
+    # Loki promtail picks this up for log shipping
+    cybe.io/log-collect: "true"

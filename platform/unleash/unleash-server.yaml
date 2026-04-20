@@ -1,0 +1,139 @@
+# Unleash server — admin UI at / and REST API at /api, /api/client.
+#
+# Two replicas for the admin surface:
+#   - One stays up during image updates (rolling)
+#   - Not HA in the strict sense (single postgres), but good enough
+#   - Client SDKs serve stale cache on server unavailability anyway
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unleash
+  namespace: unleash
+  labels:
+    app.kubernetes.io/name: unleash
+    app.kubernetes.io/component: server
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: unleash
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: unleash
+    spec:
+      # Wait for postgres before first boot (postgres migrations run on
+      # Unleash start).
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:16.3-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: unleash-postgres
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: unleash-postgres-credentials
+                  key: username
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h "$PGHOST" -U "$PGUSER"; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+              echo "postgres is ready"
+      containers:
+        - name: unleash
+          image: unleashorg/unleash-server:6.3.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 4242
+          env:
+            - name: DATABASE_URL
+              # Postgres URL assembled from secret parts. Connection
+              # pool size deliberately small — single-replica postgres.
+              valueFrom:
+                secretKeyRef:
+                  name: unleash-postgres-credentials
+                  key: url
+            - name: DATABASE_SSL
+              value: "false"
+            - name: NODE_ENV
+              value: production
+            - name: LOG_LEVEL
+              value: info
+            # Admin token — required for SDK client connections to the
+            # admin API. Client SDKs use the *client* API with their own
+            # tokens. See integration docs for token generation.
+            - name: INIT_ADMIN_API_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: unleash-admin-credentials
+                  key: adminToken
+            # Initial admin password — set on first boot only. Change
+            # via the admin UI after first login.
+            - name: UNLEASH_DEFAULT_ADMIN_USERNAME
+              value: admin
+            - name: UNLEASH_DEFAULT_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: unleash-admin-credentials
+                  key: adminPassword
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4242
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4242
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unleash
+  namespace: unleash
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: unleash
+  ports:
+    - name: http
+      port: 4242
+      targetPort: 4242
+---
+# PDB — keep at least 1 pod up during voluntary disruptions (node
+# drains, cluster upgrades).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: unleash
+  namespace: unleash
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: unleash

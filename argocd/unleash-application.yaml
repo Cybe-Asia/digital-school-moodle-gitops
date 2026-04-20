@@ -1,0 +1,42 @@
+# Unleash — self-hosted feature flag service.
+#
+# Decouples deploy from release: ship code to prod hidden behind a
+# flag, flip the flag in UI when ready. Enables A/B tests, canary
+# rollouts, kill switches without redeploying.
+#
+# Integration pattern:
+#   - Each service gets a client SDK token (generated in Unleash UI).
+#   - SDK polls this server every 10s for flag state, serves from
+#     local cache (stale-on-error). Server outage does NOT cause app
+#     outage — flags just stop updating.
+#
+# See docs/feature-flags.md for service-side integration.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: unleash-stack
+  namespace: platform-system
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Cybe-Asia/digital-school-gitops.git
+    targetRevision: main
+    path: platform/unleash
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: unleash
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
