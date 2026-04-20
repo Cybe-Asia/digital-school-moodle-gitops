@@ -41,6 +41,25 @@ Use this for:
 
 Branch naming is required: the prefix must be `qa/` (e.g. `qa/bulk-upload`, `qa/fix-auth-race`). Anything else falls back to no overlay update.
 
+### Path D — push to service repo `staging/**` branch (isolated staging, no prod)
+
+1. Service CI builds image, bumps `lab/staging/kustomization.yaml` directly (skipping lab/dev and lab/test)
+2. Commit message carries `[skip promote]` so `auto-promote-prod.yml` short-circuits (it gates on that marker — see line 29 of that workflow)
+3. ArgoCD syncs `school-staging-services` → image lands in namespace `school-staging` only
+
+Use this for:
+- UAT / business validation at staging before sign-off
+- Demo-ing a feature on staging to stakeholders without shipping to prod
+- Load-testing an image in the staging namespace (which has prod-like quotas) without exposing users
+
+**Differs from `release-*` purely by the `[skip promote]` marker.** Same overlay, same namespace. When UAT passes, either:
+- Re-push the same image with a `release-*` branch to trigger the prod cascade, OR
+- Merge the branch to `main` and let the normal lab-cascade carry it through
+
+**Caveat:** the next `release-*` push or any `main` merge that cascades to lab/staging will overwrite the staging pin. Treat staging/* pins as ephemeral too.
+
+Branch naming is required: the prefix must be `staging/` (e.g. `staging/uat-bulk-upload`, `staging/demo-q2`). Anything else falls back to no overlay update.
+
 ## End-to-end timeline (Path A)
 
 ```
