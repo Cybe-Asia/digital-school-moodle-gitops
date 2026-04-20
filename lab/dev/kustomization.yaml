@@ -91,7 +91,7 @@ images:
   newTag: sha-3983108
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
-  newTag: sha-eeef5fd
+  newTag: sha-939906d
 - name: ghcr.io/cybe-asia/otp-services
   newName: ghcr.io/cybe-asia/otp-services
   newTag: sha-f0c3c1c
