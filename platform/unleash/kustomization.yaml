@@ -9,7 +9,5 @@ resources:
   - unleash-server.yaml
   - ingress.yaml
   - networkpolicy.yaml
-  # Admin must seal + commit these (see secrets.README.md). The
-  # Application will stay OutOfSync until both are present.
-  # - unleash-postgres-credentials.sealed.yaml
-  # - unleash-admin-credentials.sealed.yaml
+  - unleash-postgres-credentials.sealed.yaml
+  - unleash-admin-credentials.sealed.yaml
