@@ -8,7 +8,12 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - http:
+    # Host-scoped so only requests with this Host: header reach school-test
+    # pods. Matches the pattern in prod/routing/live-ingress.yaml. Admin
+    # steps to activate externally (DNS + nginx) are in
+    # runbooks/subdomain-setup.md.
+    - host: test.school.cybe.tech
+      http:
         paths:
           - path: /api/v1/auth-service
             pathType: Prefix
