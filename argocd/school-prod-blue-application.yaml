@@ -12,7 +12,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/Cybe-Asia/digital-school-gitops.git
-    targetRevision: dev
+    targetRevision: main
     path: prod/blue
   destination:
     server: https://kubernetes.default.svc

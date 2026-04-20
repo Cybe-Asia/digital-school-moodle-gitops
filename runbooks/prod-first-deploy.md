@@ -136,7 +136,7 @@ ingress IP. TTL low (~60s) for first week in case of rollback.
 
 ## 7. Post-bring-up
 
-- Enable branch protection on `digital-school-gitops` dev branch
+- Enable branch protection on `digital-school-gitops` main branch
   (see `docs/branch-protection.md`).
 - Add the prod sealed-secrets controller key to off-site storage.
 - Enable Grafana alert routing for prod (PagerDuty / Slack integration).

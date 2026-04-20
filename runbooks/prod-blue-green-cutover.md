@@ -87,7 +87,7 @@ Watch for 30 minutes minimum. Expected behaviour:
 
 ```
 git revert <cutover-PR-merge-SHA> -m 1
-git push origin dev
+git push origin main
 ```
 
 Argo syncs Traefik back. `school.cybe.tech` resolves to blue again.

@@ -11,7 +11,7 @@ name: build-scan-push
 #   L7-S1 env repo enforcement (auto-PR to lab/dev; manual PR to
 #         higher envs preserves doc's dev -> test -> staging promotion)
 #
-# Services call this via `uses: Cybe-Asia/digital-school-gitops/.github/workflows/build-scan-push.yml@dev`.
+# Services call this via `uses: Cybe-Asia/digital-school-gitops/.github/workflows/build-scan-push.yml@main`.
 
 on:
   workflow_call:
@@ -35,7 +35,11 @@ on:
         type: string
         default: "Dockerfile"
       # Branch => overlay mapping. Defaults match the digital-school-gitops layout.
-      overlay_on_dev:
+      # Service repo trunk is `main`. Pushes to main auto-bump lab/dev.
+      # Pushes to release-* auto-bump lab/staging (pre-cutover smoke).
+      # Production is promotion-only via manual PR on the gitops repo —
+      # CI never auto-bumps prod/*.
+      overlay_on_main:
         required: false
         type: string
         default: "lab/dev"
@@ -43,10 +47,6 @@ on:
         required: false
         type: string
         default: "lab/staging"
-      overlay_on_main:
-        required: false
-        type: string
-        default: "overlays/production"
     secrets:
       GHCR_TOKEN:
         required: true
@@ -82,12 +82,10 @@ jobs:
           echo "image_ref=${IMAGE_NAME}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
 
           case "${GITHUB_REF}" in
-            refs/heads/dev)
-              OVERLAY="${{ inputs.overlay_on_dev }}" ;;
-            refs/heads/release-*)
-              OVERLAY="${{ inputs.overlay_on_release }}" ;;
             refs/heads/main)
               OVERLAY="${{ inputs.overlay_on_main }}" ;;
+            refs/heads/release-*)
+              OVERLAY="${{ inputs.overlay_on_release }}" ;;
             *)
               OVERLAY="" ;;  # other branches: build + scan, do not touch gitops
           esac
@@ -143,9 +141,8 @@ jobs:
           git config --global user.email "ci-bot@cybe-asia.github"
           git config --global user.name "CI Bot"
 
-          git clone "https://x-access-token:${{ secrets.GITOPS_TOKEN }}@github.com/Cybe-Asia/digital-school-gitops.git" gitops-repo
+          git clone --branch main --depth 1 "https://x-access-token:${{ secrets.GITOPS_TOKEN }}@github.com/Cybe-Asia/digital-school-gitops.git" gitops-repo
           cd gitops-repo
-          git checkout dev
 
           cd "${{ steps.vars.outputs.overlay_path }}"
           kustomize edit set image "${{ inputs.kustomize_image_key }}=${{ steps.vars.outputs.image_ref }}"
@@ -157,4 +154,4 @@ jobs:
 
           git add kustomization.yaml
           git commit -m "chore(${{ inputs.service_name }}): bump ${{ steps.vars.outputs.overlay_path }} to ${{ steps.vars.outputs.image_tag }} [skip ci]"
-          git push origin dev
+          git push origin main

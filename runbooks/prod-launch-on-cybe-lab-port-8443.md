@@ -16,7 +16,7 @@ fires:
 
 - Cybe-lab cluster Healthy (this is the case today)
 - `prod/{blue,green,routing}` manifests + sealed secrets already in
-  `Cybe-Asia/digital-school-gitops` dev branch (landed)
+  `Cybe-Asia/digital-school-gitops` main branch (landed)
 - Argo Application templates in `argocd/school-prod-*-application.yaml`
   (landed)
 - Public IP `202.165.34.138` reachable on port 8443 inbound

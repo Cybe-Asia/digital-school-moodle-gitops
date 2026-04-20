@@ -41,7 +41,7 @@ domain, mapped against the three authoritative docs:
 | # | Action | Blocker | Risk if delayed |
 |---|---|---|---|
 | 1 | Move `~/.cybe-secrets-backup/cybe-lab-sealed-secrets-master-key-*.yaml` to a vault | Needs your password manager / encrypted USB | If laptop disk dies, every SealedSecret in the repo is permanently unreadable |
-| 2 | Run `gh api PUT .../branches/dev/protection` | Needs admin GH auth | CODEOWNERS is advisory until this lands |
+| 2 | Run `gh api PUT .../branches/main/protection` | Needs admin GH auth | CODEOWNERS is advisory until this lands |
 | 3 | Traefik migration to `ingress-system` namespace | Needs sudo + maintenance window | Low — current location works, NetworkPolicy already compatible |
 | 4 | Rotate Grafana admin password | Already rotated to random via SealedSecret | — see session notes for the one-time plaintext |
 | 5 | Rotate Neo4j + JWT passwords per environment | Data migration complexity (Neo4j stores credentials) | Lab data is synthetic; low urgency |

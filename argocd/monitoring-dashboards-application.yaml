@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/Cybe-Asia/digital-school-gitops.git
-    targetRevision: dev
+    targetRevision: main
     path: platform/monitoring-dashboards
   destination:
     server: https://kubernetes.default.svc

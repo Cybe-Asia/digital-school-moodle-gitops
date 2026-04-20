@@ -28,7 +28,7 @@ Must be run by a user with `admin` permission on
 
 ```sh
 gh api -X PUT \
-  /repos/Cybe-Asia/digital-school-gitops/branches/dev/protection \
+  /repos/Cybe-Asia/digital-school-gitops/branches/main/protection \
   -H "Accept: application/vnd.github+json" \
   -f required_status_checks=null \
   -F enforce_admins=false \
@@ -57,7 +57,7 @@ gh api -X PUT \
 ## Verify
 
 ```sh
-gh api /repos/Cybe-Asia/digital-school-gitops/branches/dev/protection | jq
+gh api /repos/Cybe-Asia/digital-school-gitops/branches/main/protection | jq
 ```
 
 Should show `required_pull_request_reviews.require_code_owner_reviews:

@@ -11,7 +11,7 @@ CI Workflow Template), L7 (Env Repo Enforcement).
 ```
  service repo push                   digital-school-gitops
  ───────────────────                 ────────────────────
-   dev branch       ──build+scan+SBOM+push── lab/dev  (auto-PR)
+   main branch      ──build+scan+SBOM+push── lab/dev  (auto-PR)
    release-*        ──build+scan+SBOM+push── lab/staging (auto-PR)
    main             ──build+scan+SBOM+push── overlays/production (auto-PR)
 ```

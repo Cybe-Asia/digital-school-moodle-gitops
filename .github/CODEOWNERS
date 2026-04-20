@@ -1,35 +1,44 @@
 # CODEOWNERS for digital-school-gitops
 #
-# When branch protection has 'Require review from Code Owners' enabled,
-# any PR touching a path below auto-requests the listed owners and
-# cannot be merged without their approval.
+# Philosophy: review is required only for paths that touch many envs at
+# once OR are production-sensitive. Daily lab iteration (lab/dev,
+# lab/test, runbooks, docs, image-tag bumps from CI) is direct-push
+# allowed — no required reviewer. This keeps friction low for solo
+# operator work while preserving review discipline on the blast-radius
+# paths.
 #
 # Doc reference: Phase 1 Roadmap §2.4 L7 — "Staging requires PR approval
-# + CODEOWNERS; No direct commits to staging branch".
+# + CODEOWNERS; No direct commits to staging branch". Applied per-path.
+#
+# NOTE: no top-level '*' catch-all → paths not listed below have NO
+# required reviewer and can be direct-pushed.
 
-# Default — everything in the repo
-* @ariefnugrahaaa
-
-# Platform / base layer — changes here affect every environment at once
-/base/ @ariefnugrahaaa
-/.github/ @ariefnugrahaaa
-
-# Per-environment overlays. Replace @ariefnugrahaaa with a team handle
-# (e.g. @Cybe-Asia/devops-platform) once the team exists in the org.
-/lab/dev/ @ariefnugrahaaa
-/lab/test/ @ariefnugrahaaa
-
-# Staging + production — stricter review expected. Add additional
-# reviewers here as the team grows.
+# lab/staging — production-like release gate
 /lab/staging/ @ariefnugrahaaa
 
-# Production — strictest review. Cutover-sensitive paths especially.
+# prod/* — every path touches live users
 /prod/blue/ @ariefnugrahaaa
 /prod/green/ @ariefnugrahaaa
 /prod/routing/ @ariefnugrahaaa
 
-# ArgoCD Application manifests — cluster-wiring, high-impact
+# base/ — changes propagate to every environment at once
+/base/ @ariefnugrahaaa
+
+# cluster-policies/ — VAP / admission rules. Misconfig can brick the cluster
+/cluster-policies/ @ariefnugrahaaa
+
+# argocd/ — Application manifests. Changes here wire the whole gitops system
 /argocd/ @ariefnugrahaaa
 
-# Runbooks — operational procedures; review for accuracy and safety
-/runbooks/ @ariefnugrahaaa
+# platform/ — shared platform add-ons (cert-manager, ingress-system, monitoring)
+/platform/ @ariefnugrahaaa
+
+# CI + gh configs
+/.github/ @ariefnugrahaaa
+
+# Freely pushable (NOT in the list, kept here as a reminder):
+#   /lab/dev/         daily iteration
+#   /lab/test/        intermediate env
+#   /runbooks/        operator docs
+#   /docs/            narrative docs
+#   README.md, etc.
