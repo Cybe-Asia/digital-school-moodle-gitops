@@ -1,0 +1,105 @@
+# Off-site upload of Neo4j backups.
+#
+# Runs 15 minutes after the primary backup CronJob. Copies the freshest
+# *.cypher out of the neo4j pod and pushes it to a remote destination
+# via rclone. Retention 30 days off-site.
+#
+# The rclone destination is configured via a Secret named
+# `neo4j-offsite-rclone` containing a file `rclone.conf`. If that
+# Secret is absent, this CronJob skips the upload cleanly — it DOES
+# NOT fail. That way the manifest can live in every environment
+# (dev/test/staging/prod) and only activate where you want off-site
+# copies (realistically: prod-blue + prod-green).
+#
+# Setup steps: see runbooks/neo4j-offsite-backup-setup.md
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: neo4j-offsite-upload
+spec:
+  schedule: "15 2 * * *"   # 15 min after the primary backup at 02:00
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          serviceAccountName: neo4j-backup
+          restartPolicy: OnFailure
+          containers:
+            - name: upload
+              image: alpine/k8s:1.29.1
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "-c"]
+              args:
+                - |
+                  set -u
+                  echo "=== neo4j off-site upload — $(date -Iseconds) ==="
+
+                  if [ ! -f /rclone-config/rclone.conf ]; then
+                    echo "⚠️  /rclone-config/rclone.conf not found."
+                    echo "    Off-site upload skipped. This environment has no"
+                    echo "    neo4j-offsite-rclone Secret configured. See"
+                    echo "    runbooks/neo4j-offsite-backup-setup.md for setup."
+                    exit 0
+                  fi
+
+                  echo "rclone config present — installing rclone..."
+                  apk add --no-cache rclone >/dev/null
+
+                  export RCLONE_CONFIG=/rclone-config/rclone.conf
+
+                  # Find the newest backup file inside the neo4j pod
+                  latest=$(kubectl exec neo4j-0 -- sh -c 'ls -t /backups/*.cypher 2>/dev/null | head -1')
+                  if [ -z "$latest" ]; then
+                    echo "⚠️  no backup files found in neo4j-0:/backups — skipping"
+                    exit 0
+                  fi
+                  echo "latest backup: $latest"
+
+                  # Copy it out to this pod's ephemeral /tmp
+                  local_name="/tmp/$(basename "$latest")"
+                  kubectl cp "neo4j-0:$latest" "$local_name"
+                  size=$(stat -c%s "$local_name" 2>/dev/null || wc -c <"$local_name")
+                  echo "copied to $local_name ($size bytes)"
+
+                  # The rclone.conf MUST define a remote named 'offsite'.
+                  # Upload to a folder named after this namespace so multiple
+                  # envs can share one bucket without colliding.
+                  remote_path="offsite:cybe-school-backups/${POD_NAMESPACE}/"
+                  echo "uploading to: $remote_path"
+                  rclone copy --progress "$local_name" "$remote_path"
+                  echo "upload OK"
+
+                  # Retention: delete off-site files older than 30 days
+                  rclone delete --min-age 30d "$remote_path" || true
+                  echo "retention (>30d) cleanup done"
+
+                  # Report remaining off-site inventory (size + count)
+                  echo "--- off-site inventory ($remote_path) ---"
+                  rclone size "$remote_path" || true
+              env:
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+              volumeMounts:
+                - name: rclone-config
+                  mountPath: /rclone-config
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+          volumes:
+            - name: rclone-config
+              secret:
+                secretName: neo4j-offsite-rclone
+                optional: true          # graceful skip if Secret absent

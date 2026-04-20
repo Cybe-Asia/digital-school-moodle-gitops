@@ -5,3 +5,4 @@ resources:
   - statefulset.yaml
   - backup-rbac.yaml
   - backup-cronjob.yaml
+  - offsite-upload-cronjob.yaml
