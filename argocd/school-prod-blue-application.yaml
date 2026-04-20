@@ -19,10 +19,12 @@ spec:
     namespace: school-prod-blue
   syncPolicy:
     automated:
-      # Manual sync only on prod — no self-heal surprises at 3am.
-      # To promote a new digest, operator runs:
-      #   argocd app sync school-prod-blue-services
-      selfHeal: false
-      prune: false
+      # Auto-sync ON. Merging a PR to prod/blue/kustomization.yaml triggers
+      # a deployment within ~3 min without requiring `argocd app sync`.
+      # Gate is now the PR + CODEOWNERS review only — no separate sync click.
+      # selfHeal=true catches any manual drift (kubectl apply outside gitops)
+      # and reverts it to match git.
+      selfHeal: true
+      prune: true
     syncOptions:
       - CreateNamespace=true

@@ -14,7 +14,8 @@ spec:
     namespace: school-prod-green
   syncPolicy:
     automated:
-      selfHeal: false
-      prune: false
+      # Auto-sync ON. Same rationale as school-prod-blue.
+      selfHeal: true
+      prune: true
     syncOptions:
       - CreateNamespace=true
