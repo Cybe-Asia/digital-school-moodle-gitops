@@ -23,6 +23,11 @@ resources:
     # token (scoped to environment=test) before the frontend pod can
     # start with flags enabled. Without the secret, frontend still
     # boots and runs in "disabled" mode, using code defaults.
+    # Feature flags (Unleash). UNLEASH_FRONTEND_TOKEN is pulled from
+    # the sealed secret `unleash-frontend-token` — admin must seal the
+    # token (scoped to environment=test) before the frontend pod can
+    # start with flags enabled. Without the secret, frontend still
+    # boots and runs in "disabled" mode, using code defaults.
 patches:
 - patch: |-
     - op: replace
@@ -116,7 +121,7 @@ images:
   newTag: dev-79341be
 - name: ghcr.io/cybe-asia/digital-school-frontend
   newName: ghcr.io/cybe-asia/digital-school-frontend
-  newTag: sha-d3f95e0
+  newTag: sha-11ea0a5
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
   newTag: dev-a11e3e4
