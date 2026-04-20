@@ -91,6 +91,25 @@ kubectl delete pod neo4j-restore-drill -n $NS
 
 | Field | Value |
 |---|---|
+### Drill 2 — school-prod-blue (first prod drill)
+
+| Field | Value |
+|---|---|
+| Date (UTC) | 2026-04-20 |
+| Environment | school-prod-blue |
+| Operator | devops |
+| Backup file | `neo4j-20260419-190000.cypher` |
+| Source nodes | 0 (prod freshly deployed) |
+| Restored nodes | 0 |
+| Source constraints | 3 UNIQUENESS (lead_id, persona_id, student_id) |
+| Restored constraints | 3 UNIQUENESS (same set) |
+| Restore duration | <2s (schema-only) |
+| Result | **PASS** |
+
+### Drill 1 — school-dev
+
+| Field | Value |
+|---|---|
 | Date (UTC) | 2026-04-17 |
 | Environment | school-dev |
 | Operator | devops |
