@@ -80,6 +80,11 @@ spec:
       kind: RoleBinding
     - group: policy
       kind: PodDisruptionBudget
+    # cert-manager Certificates — each lab ingress issues its own TLS cert
+    # from the in-cluster lab-ca so browsers stop auto-upgrading HTTP to
+    # Traefik's self-signed default cert.
+    - group: cert-manager.io
+      kind: Certificate
 
   # No orphaned resources allowed — catches manual drift fast.
   orphanedResources:
