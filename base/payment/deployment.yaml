@@ -16,7 +16,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: payment-service
-          image: ghcr.io/cybe-asia/payment-services
+          image: ghcr.io/ariefnugrahaaa/payment-services
           imagePullPolicy: Always
           ports:
             - containerPort: 8085

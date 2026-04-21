@@ -194,6 +194,6 @@ images:
 - name: ghcr.io/cybe-asia/otp-services
   newName: ghcr.io/cybe-asia/otp-services
   newTag: sha-48a0e26
-- name: ghcr.io/cybe-asia/payment-services
-  newName: ghcr.io/cybe-asia/payment-services
+- name: ghcr.io/ariefnugrahaaa/payment-services
+  newName: ghcr.io/ariefnugrahaaa/payment-services
   newTag: latest
