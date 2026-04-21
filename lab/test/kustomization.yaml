@@ -196,4 +196,4 @@ images:
   newTag: sha-48a0e26
 - name: ghcr.io/ariefnugrahaaa/payment-services
   newName: ghcr.io/ariefnugrahaaa/payment-services
-  newTag: latest
+  newTag: sha-4ec9703
