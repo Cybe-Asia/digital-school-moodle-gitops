@@ -9,6 +9,7 @@ resources:
 - ../../base/auth
 - ../../base/notification
 - ../../base/otp
+- ../../base/payment
 - ../../base/frontend
 - ../../base/neo4j
 - ../../base/governance
@@ -152,11 +153,36 @@ patches:
     kind: Service
     name: frontend
 - patch: |-
+    - op: replace
+      path: /spec/type
+      value: NodePort
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 31106
+  target:
+    kind: Service
+    name: payment-service
+- patch: |-
+    # Resolve school-test.cybe.tech → traefik ClusterIP inside the pod so
+    # the Next.js proxy sends Host: school-test.cybe.tech → traefik's ingress
+    # rule for school-test-ingress matches → requests stay in this namespace.
+    # (Without this the Host would be traefik.kube-system.* and traefik would
+    # pick the wildcard school-dev-ingress and route to the wrong namespace.)
+    - op: add
+      path: /spec/template/spec/hostAliases
+      value:
+        - ip: "10.43.115.109"
+          hostnames: ["school-test.cybe.tech"]
     - op: add
       path: /spec/template/spec/containers/0/env/-
       value:
         name: API_GATEWAY_URL
-        value: "http://traefik.kube-system.svc.cluster.local"
+        value: "http://school-test.cybe.tech"
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: NEXT_PUBLIC_API_GATEWAY_URL
+        value: "http://school-test.cybe.tech"
     # Feature flags (Unleash). UNLEASH_FRONTEND_TOKEN is pulled from
     # the sealed secret `unleash-frontend-token` — admin must seal the
     # token (scoped to environment=test) before the frontend pod can
@@ -204,3 +230,6 @@ images:
 - name: ghcr.io/cybe-asia/otp-services
   newName: ghcr.io/cybe-asia/otp-services
   newTag: sha-e820228
+- name: ghcr.io/ariefnugrahaaa/payment-services
+  newName: ghcr.io/ariefnugrahaaa/payment-services
+  newTag: sha-25a0918

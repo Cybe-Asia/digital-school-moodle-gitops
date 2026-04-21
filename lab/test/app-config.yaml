@@ -6,7 +6,21 @@ data:
   NEO4J_URI: "neo4j://neo4j.school-test.svc.cluster.local:7687"
   NEO4J_USER: "neo4j"
   GOOGLE_TOKENINFO_ENDPOINT: "https://oauth2.googleapis.com/tokeninfo"
-  EMAIL_FROM: "no-reply@school-test.cybe.tech"
-  SMTP_HOST: "smtp.gmail.com"
+  # Inter-service URLs (in-cluster DNS — each svc listens on port 80)
+  AUTH_SERVICE_URL: "http://auth-service"
+  NOTIFICATION_SERVICE_URL: "http://notification-service"
+  # Public frontend origin used to build the EOI verification link in emails
+  FRONTEND_URL: "http://school-test.cybe.tech"
+  # Transactional email via Resend (smtp.resend.com — STARTTLS on 587)
+  EMAIL_FROM: "no-reply@mail.cybe.tech"
+  SMTP_HOST: "smtp.resend.com"
   SMTP_PORT: "587"
-  SMTP_USER: "your_email@gmail.com"
+  SMTP_USER: "resend"
+  # Payment (Xendit) — test/sandbox mode. Register webhook URL in Xendit:
+  #   http://school-test.cybe.tech/api/v1/payments/webhook/xendit
+  TENANT_ID: "TENANT-001"
+  XENDIT_API_URL: "https://api.xendit.co"
+  XENDIT_SUCCESS_REDIRECT_URL: "http://school-test.cybe.tech/auth/setup-account/payment/return?status=paid"
+  XENDIT_FAILURE_REDIRECT_URL: "http://school-test.cybe.tech/auth/setup-account/payment/return?status=failed"
+  DEFAULT_FEE_CURRENCY: "IDR"
+  DEFAULT_FEE_DUE_HOURS: "168"

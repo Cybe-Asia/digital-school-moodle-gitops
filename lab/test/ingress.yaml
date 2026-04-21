@@ -57,6 +57,13 @@ spec:
                 name: notification-service
                 port:
                   number: 80
+          - path: /api/v1/payments
+            pathType: Prefix
+            backend:
+              service:
+                name: payment-service
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:
