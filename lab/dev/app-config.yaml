@@ -10,3 +10,5 @@ data:
   SMTP_HOST: "smtp.gmail.com"
   SMTP_PORT: "587"
   SMTP_USER: "your_email@gmail.com"
+  NOTIFICATION_SERVICE_URL: "http://notification-service"
+  AUTH_SERVICE_URL: "http://auth-service"
