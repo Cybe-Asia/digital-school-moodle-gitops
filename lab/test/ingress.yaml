@@ -1,12 +1,40 @@
+---
+# Cert-manager will issue school-test.cybe.tech from the in-cluster lab-ca
+# ClusterIssuer. The resulting secret `school-test-tls` is referenced by
+# the Ingress below so Traefik serves a cert that matches the hostname.
+# (The lab-ca root must be trusted on your laptop once — see runbook.)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: school-test-tls
+  namespace: school-test
+spec:
+  secretName: school-test-tls
+  issuerRef:
+    name: lab-ca
+    kind: ClusterIssuer
+  commonName: school-test.cybe.tech
+  dnsNames:
+    - school-test.cybe.tech
+  duration: 2160h   # 90d
+  renewBefore: 360h # 15d
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: school-test-ingress
   namespace: school-test
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web
+    # Serve on both HTTP and HTTPS so Brave's auto-https upgrade stops
+    # landing on Traefik's default self-signed cert.
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
   ingressClassName: traefik
+  tls:
+    - hosts:
+        - school-test.cybe.tech
+      secretName: school-test-tls
   rules:
     # Host-scoped so only requests with this Host: header reach school-test
     # pods. Matches the pattern in prod/routing/live-ingress.yaml. Admin
