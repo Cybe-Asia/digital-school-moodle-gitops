@@ -64,6 +64,15 @@ resources:
         # production). All lab envs (dev/test/staging) map to Unleash's
         # "development" — same flag state in Unleash flips buttons across
         # the entire lab cluster. Prod uses "production" so it's isolated.
+    # Feature flags (Unleash). UNLEASH_FRONTEND_TOKEN is pulled from
+    # the sealed secret `unleash-frontend-token` — admin must seal the
+    # token (scoped to environment=test) before the frontend pod can
+    # start with flags enabled. Without the secret, frontend still
+    # boots and runs in "disabled" mode, using code defaults.
+        # Unleash OSS supports only built-in environments (development,
+        # production). All lab envs (dev/test/staging) map to Unleash's
+        # "development" — same flag state in Unleash flips buttons across
+        # the entire lab cluster. Prod uses "production" so it's isolated.
 patches:
 - patch: |-
     - op: replace
@@ -161,7 +170,7 @@ images:
   newTag: sha-19d7509
 - name: ghcr.io/cybe-asia/digital-school-frontend
   newName: ghcr.io/cybe-asia/digital-school-frontend
-  newTag: sha-c34afdb
+  newTag: sha-2d78aeb
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
   newTag: sha-2e00d8f
