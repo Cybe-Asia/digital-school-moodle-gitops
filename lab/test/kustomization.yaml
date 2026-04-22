@@ -569,7 +569,7 @@ patches:
 images:
 - name: ghcr.io/ariefnugrahaaa/payment-services
   newName: ghcr.io/ariefnugrahaaa/payment-services
-  newTag: sha-451778d
+  newTag: sha-446071f
 - name: ghcr.io/cybe-asia/admission-services
   newName: ghcr.io/cybe-asia/admission-services
   newTag: sha-7184865
