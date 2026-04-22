@@ -663,6 +663,20 @@ resources:
         # production). All lab envs (dev/test/staging) map to Unleash's
         # "development" — same flag state in Unleash flips buttons across
         # the entire lab cluster. Prod uses "production" so it's isolated.
+    # Resolve school-test.cybe.tech → traefik ClusterIP inside the pod so
+    # the Next.js proxy sends Host: school-test.cybe.tech → traefik's ingress
+    # rule for school-test-ingress matches → requests stay in this namespace.
+    # (Without this the Host would be traefik.kube-system.* and traefik would
+    # pick the wildcard school-dev-ingress and route to the wrong namespace.)
+    # Feature flags (Unleash). UNLEASH_FRONTEND_TOKEN is pulled from
+    # the sealed secret `unleash-frontend-token` — admin must seal the
+    # token (scoped to environment=test) before the frontend pod can
+    # start with flags enabled. Without the secret, frontend still
+    # boots and runs in "disabled" mode, using code defaults.
+        # Unleash OSS supports only built-in environments (development,
+        # production). All lab envs (dev/test/staging) map to Unleash's
+        # "development" — same flag state in Unleash flips buttons across
+        # the entire lab cluster. Prod uses "production" so it's isolated.
 patches:
 - patch: |-
     - op: replace
@@ -788,7 +802,7 @@ images:
   newTag: sha-c70a7fa
 - name: ghcr.io/cybe-asia/digital-school-frontend
   newName: ghcr.io/cybe-asia/digital-school-frontend
-  newTag: sha-c963c85
+  newTag: sha-aa46d4d
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
   newTag: sha-59bbf0a
