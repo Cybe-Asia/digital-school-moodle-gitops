@@ -29,3 +29,10 @@ data:
   # means no admins exist (every admin call returns 403). Tighten to
   # real staff emails in prod; rotate via gitops.
   ADMIN_EMAILS: "arief.nugrahaaa@gmail.com"
+  # Object storage for admissions DocumentArtifact bytes. In-cluster
+  # MinIO; same bucket per env, separate bucket per env in the future
+  # (today each env has its own MinIO StatefulSet so just one bucket
+  # is fine).
+  MINIO_ENDPOINT: "http://minio:9000"
+  MINIO_BUCKET: "ds-documents"
+  MINIO_REGION: "us-east-1"

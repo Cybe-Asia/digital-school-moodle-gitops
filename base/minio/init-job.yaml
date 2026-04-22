@@ -1,0 +1,113 @@
+# First-boot initialization: create the `ds-documents` bucket, the
+# scoped service account that admission-service uses (never the root
+# user), and apply a policy that limits the SA to that one bucket.
+#
+# Idempotent: re-running the Job (e.g. after argo prunes + recreates)
+# won't error — `mc mb` ignores "already exists", and `admin user add`
+# is update-if-present. The `mc alias set` pattern is the standard
+# MinIO bootstrap flow.
+#
+# We deliberately don't use Helm here — one Job YAML is cheaper to
+# reason about than a Helm chart's templating.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+  annotations:
+    # Run after minio is reconciled so the StatefulSet exists by the
+    # time mc tries to reach it.
+    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  # Retry a few times in case minio pod isn't quite ready yet.
+  backoffLimit: 5
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:RELEASE.2025-01-17T23-25-50Z
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_PASSWORD
+            # Scoped service-account credentials that admission-service
+            # will actually use. Generated once at seal time, same
+            # envelope as the admission secrets.
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: MINIO_ACCESS_KEY
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: MINIO_SECRET_KEY
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              # Wait for minio to accept connections. The readiness
+              # probe on the StatefulSet gates pod-Ready, but Argo
+              # starts this Job the moment the pod is scheduled.
+              for i in $(seq 1 30); do
+                if mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; then
+                  echo "minio reachable"
+                  break
+                fi
+                echo "minio not ready yet (attempt $i/30)"
+                sleep 2
+              done
+
+              # Idempotent bucket create. `--ignore-existing` suppresses
+              # the "already exists" error on reruns.
+              mc mb --ignore-existing local/ds-documents
+
+              # Per-bucket policy: this service account can read/write
+              # objects in ds-documents/* and nothing else. No ListBuckets,
+              # no other buckets.
+              cat >/tmp/ds-documents-policy.json <<'JSON'
+              {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Action": ["s3:PutObject","s3:GetObject","s3:DeleteObject"],
+                    "Resource": ["arn:aws:s3:::ds-documents/*"]
+                  },
+                  {
+                    "Effect": "Allow",
+                    "Action": ["s3:ListBucket"],
+                    "Resource": ["arn:aws:s3:::ds-documents"]
+                  }
+                ]
+              }
+              JSON
+              mc admin policy create local ds-documents-rw /tmp/ds-documents-policy.json || \
+                mc admin policy update local ds-documents-rw /tmp/ds-documents-policy.json
+
+              # Create (or update) the scoped service account for
+              # admission-service. `svcacct add` is idempotent — if
+              # the access key exists, the command no-ops.
+              if ! mc admin user svcacct info local "$MINIO_ACCESS_KEY" >/dev/null 2>&1; then
+                mc admin user svcacct add local "$MINIO_ROOT_USER" \
+                  --access-key "$MINIO_ACCESS_KEY" \
+                  --secret-key "$MINIO_SECRET_KEY" \
+                  --policy /tmp/ds-documents-policy.json
+                echo "service account created"
+              else
+                echo "service account already present"
+              fi
+
+              echo "minio init done"

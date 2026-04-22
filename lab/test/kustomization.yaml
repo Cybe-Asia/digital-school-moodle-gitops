@@ -12,12 +12,14 @@ resources:
 - ../../base/payment
 - ../../base/frontend
 - ../../base/neo4j
+- ../../base/minio
 - ../../base/governance
 - ingress.yaml
 - resource-quota.yaml
 - app-config.yaml
 - app-secrets-sealed.yaml
 - neo4j-secret-sealed.yaml
+- minio-secret-sealed.yaml
 - unleash-frontend-token.sealed.yaml
 
     # Feature flags (Unleash). UNLEASH_FRONTEND_TOKEN is pulled from

@@ -1,0 +1,96 @@
+# MinIO — S3-compatible object store for admissions DocumentArtifact bytes.
+#
+# Single replica in lab. Stateful because we can't lose uploaded docs
+# between pod restarts; PVC carries /data through.
+#
+# Port split:
+#   9000 — S3 API (what admission-service talks to)
+#   9090 — MinIO console (admin UI, exposed internally only)
+#
+# Root credentials come from the sealed secret `minio-secret`. Each
+# env (school-test / staging / prod) has its own sealed secret with
+# its own credentials — nothing is shared across envs (spec §11).
+#
+# Bucket + scoped service-account are created by init-job.yaml on
+# first boot. admission-service talks to MinIO with the scoped
+# MINIO_ACCESS_KEY / MINIO_SECRET_KEY from app-secrets.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: minio
+spec:
+  serviceName: minio
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+          imagePullPolicy: IfNotPresent
+          args:
+            - server
+            - /data
+            - --console-address
+            - ":9090"
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: MINIO_ROOT_PASSWORD
+            # Hard-disable browser exposure to the internet as a defence
+            # in depth even though the service is ClusterIP-only.
+            - name: MINIO_BROWSER_REDIRECT
+              value: "off"
+          ports:
+            - containerPort: 9000
+              name: s3
+            - containerPort: 9090
+              name: console
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: 9000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: minio-data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: minio-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            # 10Gi for lab — birth certs + KKs + photos per applicant
+            # averages ~5MB; 10Gi holds ~2000 applicants' worth.
+            # Tune per env by patching in the overlay.
+            storage: 10Gi
+        storageClassName: local-path
+        volumeMode: Filesystem

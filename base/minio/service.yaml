@@ -1,0 +1,21 @@
+# MinIO internal service. S3 API on :9000; console on :9090.
+# ClusterIP only — admin-service hits it by in-cluster DNS, never from
+# the public internet. If an admin needs the console, kubectl port-
+# forward 9090:9090 gives a private tunnel.
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  labels:
+    app: minio
+spec:
+  type: ClusterIP
+  selector:
+    app: minio
+  ports:
+    - name: s3
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9090
+      targetPort: 9090
