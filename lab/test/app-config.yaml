@@ -28,7 +28,7 @@ data:
   # allowed to hit /admin/applications* on admission-service. Empty/unset
   # means no admins exist (every admin call returns 403). Tighten to
   # real staff emails in prod; rotate via gitops.
-  ADMIN_EMAILS: "arief.nugrahaaa@gmail.com"
+  ADMIN_EMAILS: "arief.nugrahaaa@gmail.com,demo.parent@school-test.local"
   # Object storage for admissions DocumentArtifact bytes. In-cluster
   # MinIO; same bucket per env, separate bucket per env in the future
   # (today each env has its own MinIO StatefulSet so just one bucket
