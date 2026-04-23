@@ -1123,6 +1123,17 @@ patches:
       value:
         name: NEXT_PUBLIC_API_GATEWAY_URL
         value: "http://school-test.cybe.tech"
+    # SSR bypass: the Host-aliased gateway URL above works for most
+    # paths but Traefik returns 404 for /api/leads/v1/* when the pod
+    # reaches it via the ClusterIP shortcut. Point SSR fetches
+    # directly at the admission-service ClusterIP instead — the
+    # /me, /me/sections, /me/attendance, /me/grades endpoints all
+    # live under /api/leads/v1 on that service.
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: ADMISSION_SERVICE_URL
+        value: "http://admission-service/api/leads/v1"
     # Feature flags (Unleash). UNLEASH_FRONTEND_TOKEN is pulled from
     # the sealed secret `unleash-frontend-token` — admin must seal the
     # token (scoped to environment=test) before the frontend pod can
