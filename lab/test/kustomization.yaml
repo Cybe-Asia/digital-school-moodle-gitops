@@ -1854,7 +1854,7 @@ patches:
 - patch: |-
     - op: replace
       path: /spec/template/spec/containers/0/env/1/value
-      value: http://school-test-moodle.cybe.tech
+      value: https://school-test-moodle.cybe.tech
   target:
     kind: Deployment
     name: moodle
@@ -1868,7 +1868,7 @@ patches:
       path: /spec/template/spec/containers/0/env/-
       value:
         name: MOODLE_PUBLIC_URL
-        value: http://school-test-moodle.cybe.tech
+        value: https://school-test-moodle.cybe.tech
     - op: add
       path: /spec/template/spec/containers/0/env/-
       value:
@@ -1918,7 +1918,7 @@ patches:
       path: /spec/template/spec/containers/0/env/-
       value:
         name: MOODLE_PUBLIC_URL
-        value: http://school-test-moodle.cybe.tech
+        value: https://school-test-moodle.cybe.tech
     - op: add
       path: /spec/template/spec/containers/0/env/-
       value:
