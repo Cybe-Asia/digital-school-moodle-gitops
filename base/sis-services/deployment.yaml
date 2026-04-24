@@ -1,0 +1,37 @@
+# sis-services — Student Information System microservice.
+# Sibling to admission-services. Owns Sections, Attendance, Grades
+# graph nodes. Reads Lead/User/Student from the shared Neo4j, never
+# writes them (that's admission-services' turf).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sis-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sis-service
+  template:
+    metadata:
+      labels:
+        app: sis-service
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: sis-service
+          image: ghcr.io/cybe-asia/sis-services
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8081
+          env:
+            - name: SERVER_PORT
+              value: "8081"
+          envFrom:
+            # Shares the same ConfigMap as admission-service — holds
+            # NEO4J_URI + NEO4J_USER + the ADMIN_EMAILS allowlist.
+            # JWT_SECRET lives in app-secrets.
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: app-secrets

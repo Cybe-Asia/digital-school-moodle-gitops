@@ -64,6 +64,46 @@ spec:
                 name: admission-service
                 port:
                   number: 80
+          # SIS (Student Information System) routes → sis-service
+          # These must appear BEFORE the /api/leads/v1 catch-all so
+          # Traefik's prefix match reaches them first. Longest prefix
+          # wins; all four explicit SIS paths are longer than
+          # /api/leads/v1.
+          - path: /api/v1/sis-service
+            pathType: Prefix
+            backend:
+              service:
+                name: sis-service
+                port:
+                  number: 80
+          - path: /api/leads/v1/admin/sis
+            pathType: Prefix
+            backend:
+              service:
+                name: sis-service
+                port:
+                  number: 80
+          - path: /api/leads/v1/me/grades
+            pathType: Prefix
+            backend:
+              service:
+                name: sis-service
+                port:
+                  number: 80
+          - path: /api/leads/v1/me/attendance
+            pathType: Prefix
+            backend:
+              service:
+                name: sis-service
+                port:
+                  number: 80
+          - path: /api/leads/v1/me/sections
+            pathType: Prefix
+            backend:
+              service:
+                name: sis-service
+                port:
+                  number: 80
           - path: /api/leads/v1
             pathType: Prefix
             backend:

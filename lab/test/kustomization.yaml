@@ -20,6 +20,7 @@ resources:
 - ../../base/neo4j
 - ../../base/minio
 - ../../base/governance
+- ../../base/sis-services
 - ingress.yaml
 - resource-quota.yaml
 - app-config.yaml
