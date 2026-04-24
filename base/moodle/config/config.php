@@ -169,21 +169,28 @@ SCSS;
 
 $CFG->forced_plugin_settings = [
     'theme_boost' => [
-        // Raw SCSS slots — the ONLY correct names for Boost's custom
-        // SCSS injection. `scsspre` / `scss` are deprecated and are
-        // silently ignored by theme/boost/classes/output/core_renderer.php
-        // (took a round of "why isn't the palette applying?" debugging
-        // to catch this one — hence the hard-coded rename).
+        // SCSS injection slots — `scsspre` + `scss` are the names
+        // Boost's pipeline actually reads. Verified against
+        //   theme/boost/lib.php::theme_boost_get_pre_scss()
+        //     → uses $theme->settings->scsspre
+        //   theme/boost/lib.php::theme_boost_get_extra_scss()
+        //     → uses $theme->settings->scss
         //
-        //   rawscsspre  runs BEFORE Boost's default _variables.scss,
-        //               so $primary here wins over the stock Bootstrap
-        //               blue when Boost compiles its SCSS bundle.
-        //   rawscss     runs AFTER the compiled bundle, so pure CSS
-        //               overrides here cascade over everything Boost
-        //               generated.
-        'rawscsspre' => $twsi_scss_pre,
-        'rawscss'    => $twsi_scss_post,
-        // Flat brand colour for the navbar + link hover shim.
+        // Do NOT use `rawscsspre` / `rawscss` here — despite what
+        // some Moodle docs suggest, those are for a different
+        // theme/preset and silently no-op under plain Boost. This
+        // ate a full debugging loop; leaving the note for next time.
+        //
+        //   scsspre  prepended to Boost's SCSS bundle — runs BEFORE
+        //            the default _variables.scss, so $primary and
+        //            friends declared here override stock Bootstrap.
+        //   scss     appended to the compiled SCSS — pure CSS rules
+        //            here cascade over everything Boost generated.
+        'scsspre' => $twsi_scss_pre,
+        'scss'    => $twsi_scss_post,
+        // Flat brand colour for the navbar + link hover shim. Boost
+        // reads this directly (theme_boost_get_pre_scss reads
+        // 'brandcolor' and injects $primary early in the SCSS).
         'brandcolor' => '#0B6E4F',
     ],
 ];
