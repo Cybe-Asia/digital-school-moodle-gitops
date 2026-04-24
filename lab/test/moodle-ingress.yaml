@@ -1,14 +1,46 @@
-# Moodle ingress for school-test. Hostname is env-specific. Public DNS
-# A record points school-test-moodle.cybe.tech to the cluster's external IP.
+# Moodle ingress for school-test. TLS is terminated here via a
+# cert-manager Certificate signed by the in-cluster lab-ca
+# ClusterIssuer. Same pattern as school-test-tls (see
+# lab/test/ingress.yaml — the cert for school-test.cybe.tech).
+#
+# Why HTTPS matters on Moodle: the parent portal POSTs a Moodle
+# login form (username + derived password) to this host in
+# auto-submit HTML. Browsers show a scary "your info isn't
+# secure" warning when credentials travel over plain HTTP, and
+# some network gateways (UniFi in particular) intercept HTTP
+# POSTs and redirect to their captive portal. HTTPS fixes both.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: school-test-moodle-tls
+  namespace: school-test
+spec:
+  secretName: school-test-moodle-tls
+  issuerRef:
+    name: lab-ca
+    kind: ClusterIssuer
+  commonName: school-test-moodle.cybe.tech
+  dnsNames:
+    - school-test-moodle.cybe.tech
+  duration: 2160h    # 90d
+  renewBefore: 360h  # 15d
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: moodle-ingress
   namespace: school-test
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web
+    # web + websecure so HTTP auto-redirects to HTTPS (Traefik
+    # default behaviour when both entrypoints are listed).
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
   ingressClassName: traefik
+  tls:
+    - hosts:
+        - school-test-moodle.cybe.tech
+      secretName: school-test-moodle-tls
   rules:
     - host: school-test-moodle.cybe.tech
       http:
