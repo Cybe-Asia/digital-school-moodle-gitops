@@ -22,6 +22,10 @@ resources:
 - mariadb.yaml
 - redis.yaml
 - moodle.yaml
+# One-shot ArgoCD PostSync Job: writes TWSI site name to mdl_course
+# and runs purge_all_caches() so the forced_plugin_settings theme
+# SCSS (in moodle.yaml) actually compiles and serves.
+- brand-init.yaml
 
 labels:
 - pairs:
