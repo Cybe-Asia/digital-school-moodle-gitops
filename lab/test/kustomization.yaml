@@ -3,6 +3,12 @@ kind: Kustomization
 
 namespace: school-test
 
+
+# Moodle LMS: admissions-test engine + future student learning.
+# Base at base/moodle/; overlay adds per-env ingress + sealed DB secret.
+# Post-deploy one-time install (see runbooks/moodle-first-deploy.md):
+#   kubectl -n <ns> exec deploy/moodle -- \
+#     php /var/www/html/admin/cli/install_database.php --agree-license ...
 resources:
 - namespace.yaml
 - ../../base/admission
@@ -21,12 +27,6 @@ resources:
 - neo4j-secret-sealed.yaml
 - minio-secret-sealed.yaml
 - unleash-frontend-token.sealed.yaml
-
-# Moodle LMS: admissions-test engine + future student learning.
-# Base at base/moodle/; overlay adds per-env ingress + sealed DB secret.
-# Post-deploy one-time install (see runbooks/moodle-first-deploy.md):
-#   kubectl -n <ns> exec deploy/moodle -- \
-#     php /var/www/html/admin/cli/install_database.php --agree-license ...
 - ../../base/moodle
 - moodle-ingress.yaml
 - moodle-mariadb-secret-sealed.yaml
@@ -1611,6 +1611,39 @@ resources:
         # production). All lab envs (dev/test/staging) map to Unleash's
         # "development" — same flag state in Unleash flips buttons across
         # the entire lab cluster. Prod uses "production" so it's isolated.
+    # Resolve school-test.cybe.tech → traefik ClusterIP inside the pod so
+    # the Next.js proxy sends Host: school-test.cybe.tech → traefik's ingress
+    # rule for school-test-ingress matches → requests stay in this namespace.
+    # (Without this the Host would be traefik.kube-system.* and traefik would
+    # pick the wildcard school-dev-ingress and route to the wrong namespace.)
+    # SSR bypass: the Host-aliased gateway URL above works for most
+    # paths but Traefik returns 404 for /api/leads/v1/* when the pod
+    # reaches it via the ClusterIP shortcut. Point SSR fetches
+    # directly at the admission-service ClusterIP instead — the
+    # /me, /me/sections, /me/attendance, /me/grades endpoints all
+    # live under /api/leads/v1 on that service.
+    # Feature flags (Unleash). UNLEASH_FRONTEND_TOKEN is pulled from
+    # the sealed secret `unleash-frontend-token` — admin must seal the
+    # token (scoped to environment=test) before the frontend pod can
+    # start with flags enabled. Without the secret, frontend still
+    # boots and runs in "disabled" mode, using code defaults.
+        # Unleash OSS supports only built-in environments (development,
+        # production). All lab envs (dev/test/staging) map to Unleash's
+        # "development" — same flag state in Unleash flips buttons across
+        # the entire lab cluster. Prod uses "production" so it's isolated.
+# MOODLE_WWWROOT is the canonical URL for Moodle CLI tools.
+# Live HTTP requests still read HTTP_HOST, but cron/install
+# has no HTTP context and needs this fallback.
+
+# Moodle LMS integration for the admissions online-test flow. These
+# values wire the frontend pod to the in-cluster Moodle instance:
+#   MOODLE_INTERNAL_URL — cluster DNS to Moodle service (fast, no NAT)
+#   MOODLE_PUBLIC_URL   — the browser-visible URL; Moodle echoes it
+#                         back in redirects, so we send it as Host
+#                         header on internal calls
+#   MOODLE_API_TOKEN / MOODLE_STUDENT_PASSWORD_SALT — sealed secret
+#   MOODLE_IIHS_* / MOODLE_IISS_* — course + quiz CMIDs seeded in
+#                                   the Moodle bootstrap script.
 patches:
 - patch: |-
     - op: replace
@@ -1735,9 +1768,6 @@ patches:
   target:
     kind: Deployment
     name: frontend
-# MOODLE_WWWROOT is the canonical URL for Moodle CLI tools.
-# Live HTTP requests still read HTTP_HOST, but cron/install
-# has no HTTP context and needs this fallback.
 - patch: |-
     - op: replace
       path: /spec/template/spec/containers/0/env/1/value
@@ -1745,16 +1775,6 @@ patches:
   target:
     kind: Deployment
     name: moodle
-
-# Moodle LMS integration for the admissions online-test flow. These
-# values wire the frontend pod to the in-cluster Moodle instance:
-#   MOODLE_INTERNAL_URL — cluster DNS to Moodle service (fast, no NAT)
-#   MOODLE_PUBLIC_URL   — the browser-visible URL; Moodle echoes it
-#                         back in redirects, so we send it as Host
-#                         header on internal calls
-#   MOODLE_API_TOKEN / MOODLE_STUDENT_PASSWORD_SALT — sealed secret
-#   MOODLE_IIHS_* / MOODLE_IISS_* — course + quiz CMIDs seeded in
-#                                   the Moodle bootstrap script.
 - patch: |-
     - op: add
       path: /spec/template/spec/containers/0/env/-
@@ -1818,7 +1838,7 @@ images:
   newTag: sha-c70a7fa
 - name: ghcr.io/cybe-asia/digital-school-frontend
   newName: ghcr.io/cybe-asia/digital-school-frontend
-  newTag: sha-c1a362d
+  newTag: sha-e4b5e2b
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
   newTag: sha-59bbf0a
