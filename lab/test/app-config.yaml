@@ -28,7 +28,15 @@ data:
   # allowed to hit /admin/applications* on admission-service. Empty/unset
   # means no admins exist (every admin call returns 403). Tighten to
   # real staff emails in prod; rotate via gitops.
-  ADMIN_EMAILS: "arief.nugrahaaa@gmail.com,demo.parent@school-test.local,admin@school-test.local"
+  #
+  # Keep this list STRICTLY staff. An account listed here is sent to
+  # /admin/admissions at login and fenced out of the parent tree.
+  # arief.nugrahaaa@gmail.com was previously here for dev testing but
+  # moved off — that account owns a real Lead (Lavenchia) and should
+  # render as a parent. For staff-role testing from that inbox, use
+  # a Gmail +alias (e.g. arief.nugrahaaa+admin@gmail.com) and add
+  # THE ALIAS here — not the bare address.
+  ADMIN_EMAILS: "demo.parent@school-test.local,admin@school-test.local"
   # Object storage for admissions DocumentArtifact bytes. In-cluster
   # MinIO; same bucket per env, separate bucket per env in the future
   # (today each env has its own MinIO StatefulSet so just one bucket
