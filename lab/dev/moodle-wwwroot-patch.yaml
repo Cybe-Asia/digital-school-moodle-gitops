@@ -1,0 +1,15 @@
+# Sets MOODLE_WWWROOT env var used as fallback by config.php when
+# HTTP_HOST is unavailable (e.g., during CLI install or cron runs).
+# The live request path still reads HTTP_HOST dynamically.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moodle
+spec:
+  template:
+    spec:
+      containers:
+        - name: moodle
+          env:
+            - name: MOODLE_WWWROOT
+              value: http://school-dev-moodle.cybe.tech

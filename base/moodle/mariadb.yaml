@@ -1,0 +1,60 @@
+# MariaDB 10.11 backing store for Moodle. One instance per environment
+# (never shared across envs). Storage is 5Gi local-path — fine for the
+# volume of quiz attempts we expect in admissions. Credentials are
+# supplied by the per-env sealed Secret `moodle-mariadb-secret`.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: moodle-mariadb-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moodle-mariadb
+spec:
+  replicas: 1
+  # Recreate (not rolling) because only one pod can mount the RWO PVC;
+  # a rolling update would deadlock on the second pod waiting for the
+  # volume the first still holds.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: moodle-mariadb
+  template:
+    metadata:
+      labels:
+        app: moodle-mariadb
+    spec:
+      containers:
+        - name: mariadb
+          image: mariadb:10.11
+          ports:
+            - containerPort: 3306
+          envFrom:
+            - secretRef:
+                name: moodle-mariadb-secret
+          volumeMounts:
+            - mountPath: /var/lib/mysql
+              name: mariadb-storage
+      volumes:
+        - name: mariadb-storage
+          persistentVolumeClaim:
+            claimName: moodle-mariadb-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: moodle-mariadb
+spec:
+  selector:
+    app: moodle-mariadb
+  ports:
+    - port: 3306
+      targetPort: 3306

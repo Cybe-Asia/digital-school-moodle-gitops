@@ -1,0 +1,22 @@
+# Moodle ingress for school-dev. Hostname is env-specific. Public DNS
+# A record points school-dev-moodle.cybe.tech to the cluster's external IP.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: moodle-ingress
+  namespace: school-dev
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: school-dev-moodle.cybe.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: moodle
+                port:
+                  number: 80

@@ -20,6 +20,15 @@ resources:
 - smoke-test-job.yaml
 - unleash-frontend-token.sealed.yaml
 
+# Moodle LMS: admissions-test engine + future student learning.
+# Base at base/moodle/; overlay adds per-env ingress + sealed DB secret.
+# Post-deploy one-time install (see runbooks/moodle-first-deploy.md):
+#   kubectl -n <ns> exec deploy/moodle -- \
+#     php /var/www/html/admin/cli/install_database.php --agree-license ...
+- ../../base/moodle
+- moodle-ingress.yaml
+- moodle-mariadb-secret-sealed.yaml
+
 replicas:
 - name: admission-service
   count: 2
@@ -108,6 +117,17 @@ patches:
   target:
     kind: Deployment
     name: frontend
+# MOODLE_WWWROOT is the canonical URL for Moodle CLI tools.
+# Live HTTP requests still read HTTP_HOST, but cron/install
+# has no HTTP context and needs this fallback.
+- patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/env/1/value
+      value: http://school-staging-moodle.cybe.tech
+  target:
+    kind: Deployment
+    name: moodle
+
 images:
 - name: ghcr.io/cybe-asia/admission-services
   newName: ghcr.io/cybe-asia/admission-services

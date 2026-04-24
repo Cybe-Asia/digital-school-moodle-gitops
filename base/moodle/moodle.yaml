@@ -1,0 +1,175 @@
+# Moodle LMS (PHP 8.2 + Apache) — the admissions assessment engine.
+# Image is built from digital-school-moodle repo and pushed to GHCR
+# (same cadence as the app microservices). Static config lives in
+# the `moodle-config` + `moodle-apache-vhost` + `moodle-php-ini`
+# ConfigMaps (generated below); per-env overrides come from each
+# overlay's moodle-config-patch.yaml.
+#
+# wwwroot behavior:
+#   - Picked up dynamically from $_SERVER['HTTP_HOST'] (and the
+#     X-Forwarded-Proto header from Traefik for https).
+#   - Fallback (used during CLI install) is the per-env hostname
+#     written by the overlay patch.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: moodle-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: moodle-config
+data:
+  config.php: |
+    <?php
+    unset($CFG);
+    global $CFG;
+    $CFG = new stdClass();
+
+    $CFG->dbtype    = 'mariadb';
+    $CFG->dblibrary = 'native';
+    $CFG->dbhost    = getenv('MOODLE_DB_HOST') ?: 'moodle-mariadb';
+    $CFG->dbname    = 'moodle';
+    $CFG->dbuser    = 'moodle';
+    $CFG->dbpass    = getenv('MOODLE_DB_PASS');
+    $CFG->prefix    = 'mdl_';
+    $CFG->dboptions = array (
+      'dbpersist' => 0,
+      'dbport' => '',
+      'dbsocket' => '',
+      'dbcollation' => 'utf8mb4_unicode_ci',
+    );
+
+    if (isset($_SERVER['HTTP_HOST'])) {
+        $protocol = 'http';
+        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+            $protocol = 'https';
+        }
+        $CFG->wwwroot = $protocol . '://' . $_SERVER['HTTP_HOST'];
+    } else {
+        $CFG->wwwroot = getenv('MOODLE_WWWROOT') ?: 'http://moodle.local';
+    }
+
+    $CFG->dataroot  = '/var/moodledata';
+    $CFG->admin     = 'admin';
+    $CFG->directorypermissions = 0777;
+
+    require_once(__DIR__ . '/lib/setup.php');
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: moodle-apache-vhost
+data:
+  000-default.conf: |
+    <VirtualHost *:80>
+        ServerAdmin webmaster@localhost
+        DocumentRoot /var/www/html/public
+
+        <Directory /var/www/html/public>
+            Options FollowSymLinks
+            AllowOverride All
+            Require all granted
+        </Directory>
+
+        ErrorLog ${APACHE_LOG_DIR}/error.log
+        CustomLog ${APACHE_LOG_DIR}/access.log combined
+    </VirtualHost>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: moodle-php-ini
+data:
+  # Moodle's CLI installer refuses to proceed below max_input_vars=5000
+  # (it has a preflight check). Default PHP ships with 1000.
+  zz-moodle.ini: |
+    max_input_vars = 5000
+    memory_limit = 512M
+    upload_max_filesize = 64M
+    post_max_size = 64M
+    max_execution_time = 300
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moodle
+spec:
+  replicas: 1
+  # Single-writer PVC — Recreate avoids deadlock on rolling update.
+  # Acceptable downtime window is ~20 s on image roll (Moodle boots fast).
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: moodle
+  template:
+    metadata:
+      labels:
+        app: moodle
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: moodle
+          image: ghcr.io/cybe-asia/digital-school-moodle:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          env:
+            # DB credentials exposed to PHP via getenv() in config.php.
+            # Values come from the per-env sealed `moodle-mariadb-secret`.
+            - name: MOODLE_DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: moodle-mariadb-secret
+                  key: MYSQL_PASSWORD
+            # MOODLE_WWWROOT is set per-env via overlay patch so CLI
+            # tools (install, cron) know the canonical URL. The live
+            # HTTP path still reads HTTP_HOST dynamically.
+            - name: MOODLE_WWWROOT
+              value: http://placeholder-overridden-per-env.invalid
+          volumeMounts:
+            - mountPath: /var/moodledata
+              name: moodledata
+            - mountPath: /var/www/html/config.php
+              name: moodle-config
+              subPath: config.php
+            - mountPath: /etc/apache2/sites-available/000-default.conf
+              name: apache-vhost
+              subPath: 000-default.conf
+            - mountPath: /usr/local/etc/php/conf.d/zz-moodle.ini
+              name: moodle-php-ini
+              subPath: zz-moodle.ini
+      volumes:
+        - name: moodledata
+          persistentVolumeClaim:
+            claimName: moodle-pvc
+        - name: moodle-config
+          configMap:
+            name: moodle-config
+        - name: apache-vhost
+          configMap:
+            name: moodle-apache-vhost
+        - name: moodle-php-ini
+          configMap:
+            name: moodle-php-ini
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: moodle
+spec:
+  selector:
+    app: moodle
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+  type: ClusterIP

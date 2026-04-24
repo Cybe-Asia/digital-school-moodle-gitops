@@ -1,0 +1,21 @@
+# Live alias for Moodle, same blue/green slot pattern as the other
+# live-* services. Swinging prod = updating externalName on this
+# plus the app services together. See runbooks/prod-cutover.md.
+#
+# IMPORTANT: Moodle is stateful (MariaDB). Blue and green each have
+# their own DB. Cutover requires a mariadb-dump from the old-active
+# MariaDB, then restore into the new-active before swinging this
+# ExternalName. Freeze the active Moodle (disable quiz availability)
+# during the window to avoid writes hitting a DB that's about to be
+# superseded.
+apiVersion: v1
+kind: Service
+metadata:
+  name: live-moodle
+  namespace: school-prod-routing
+spec:
+  type: ExternalName
+  externalName: moodle.school-prod-blue.svc.cluster.local
+  ports:
+    - port: 80
+      targetPort: 80

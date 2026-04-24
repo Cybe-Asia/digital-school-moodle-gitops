@@ -1,0 +1,28 @@
+# Moodle LMS stack (admissions test engine + future student learning)
+#
+# This base deploys a Moodle instance with its own MariaDB 10.11 and
+# Redis 7 inside the target environment's school-* namespace. Each
+# overlay (lab/test, lab/dev, lab/staging, prod/blue, prod/green) adds:
+#   - moodle-secret.yaml (sealed) holding MYSQL_* vars
+#   - moodle-ingress.yaml with the per-env public hostname
+#   - moodle-config.yaml patching config.php with the env-specific
+#     wwwroot fallback (used when HTTP_HOST header is absent)
+#
+# Install is a one-time manual step after first deploy:
+#   kubectl -n <ns> exec deploy/moodle -- \
+#     php /var/www/html/admin/cli/install_database.php \
+#     --agree-license --adminuser=admin --adminpass=... \
+#     --adminemail=... --fullname=... --shortname=...
+#
+# See runbooks/moodle-first-deploy.md for details.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- mariadb.yaml
+- redis.yaml
+- moodle.yaml
+
+labels:
+- pairs:
+    app.kubernetes.io/part-of: moodle

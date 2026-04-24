@@ -1,0 +1,22 @@
+# Moodle ingress for school-staging. Hostname is env-specific. Public DNS
+# A record points school-staging-moodle.cybe.tech to the cluster's external IP.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: moodle-ingress
+  namespace: school-staging
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: school-staging-moodle.cybe.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: moodle
+                port:
+                  number: 80

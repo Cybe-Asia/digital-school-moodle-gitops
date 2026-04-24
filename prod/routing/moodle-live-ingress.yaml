@@ -1,0 +1,29 @@
+# Public production URL for Moodle. Lives on the same cluster ingress
+# IP as school.cybe.tech; Traefik routes by Host header. The backend
+# is the live-moodle ExternalName, which indirects to the currently
+# active color (blue or green).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: moodle-live-ingress
+  namespace: school-prod-routing
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: 'true'
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: school-moodle.cybe.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: live-moodle
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - school-moodle.cybe.tech
+      secretName: school-moodle-live-tls

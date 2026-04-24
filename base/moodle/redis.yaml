@@ -1,0 +1,54 @@
+# Redis 7 for Moodle session/cache layer. 1Gi is generous for the
+# admissions-test workload (a few dozen concurrent quiz attempts per
+# intake window). Moodle writes ephemeral session state here; losing
+# the PVC only invalidates active sessions, never persistent data.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: moodle-redis-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moodle-redis
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: moodle-redis
+  template:
+    metadata:
+      labels:
+        app: moodle-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - mountPath: /data
+              name: redis-storage
+      volumes:
+        - name: redis-storage
+          persistentVolumeClaim:
+            claimName: moodle-redis-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: moodle-redis
+spec:
+  selector:
+    app: moodle-redis
+  ports:
+    - port: 6379
+      targetPort: 6379

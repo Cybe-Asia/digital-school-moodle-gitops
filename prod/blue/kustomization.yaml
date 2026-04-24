@@ -26,6 +26,15 @@ resources:
 - neo4j-secret-sealed.yaml
 - pdbs.yaml
 
+# Moodle LMS: admissions-test engine + future student learning.
+# Base at base/moodle/; overlay adds per-env ingress + sealed DB secret.
+# Post-deploy one-time install (see runbooks/moodle-first-deploy.md):
+#   kubectl -n <ns> exec deploy/moodle -- \
+#     php /var/www/html/admin/cli/install_database.php --agree-license ...
+- ../../base/moodle
+- moodle-ingress.yaml
+- moodle-mariadb-secret-sealed.yaml
+
 replicas:
 - name: admission-service
   count: 3
@@ -65,6 +74,15 @@ patches:
   target:
     kind: Deployment
     name: frontend
+
+# MOODLE_WWWROOT canonical URL for Moodle CLI (install, cron).
+- patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/env/1/value
+      value: http://school-prod-blue-moodle.cybe.tech
+  target:
+    kind: Deployment
+    name: moodle
 
 images:
 # Image tags default to current lab/staging pins. In practice, the
