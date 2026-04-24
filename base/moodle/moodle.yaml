@@ -46,14 +46,46 @@ data:
       'dbcollation' => 'utf8mb4_unicode_ci',
     );
 
-    if (isset($_SERVER['HTTP_HOST'])) {
+    // wwwroot resolution (read top-down):
+    //
+    //   1. MOODLE_WWWROOT env var if set to a non-empty absolute URL.
+    //      Overlays set this per-env to the canonical public URL
+    //      (e.g. https://school-test-moodle.cybe.tech). Using it as
+    //      the primary source pins Moodle's generated links — the
+    //      alternative (inferring from HTTP_HOST) creates redirect
+    //      loops when the inferred scheme disagrees with the
+    //      ingress's TLS decision.
+    //
+    //   2. Derived from HTTP_HOST + scheme detection. Fallback when
+    //      MOODLE_WWWROOT is empty (local dev without the overlay).
+    //
+    //   3. http://moodle.local as a last-resort default so CLI tools
+    //      have a wwwroot to echo in error messages.
+    $_moodle_wwwroot = trim(getenv('MOODLE_WWWROOT') ?: '');
+    if ($_moodle_wwwroot !== '') {
+        $CFG->wwwroot = $_moodle_wwwroot;
+    } else if (isset($_SERVER['HTTP_HOST'])) {
         $protocol = 'http';
-        if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+        if (
+            (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ||
+            (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
+        ) {
             $protocol = 'https';
         }
         $CFG->wwwroot = $protocol . '://' . $_SERVER['HTTP_HOST'];
     } else {
-        $CFG->wwwroot = getenv('MOODLE_WWWROOT') ?: 'http://moodle.local';
+        $CFG->wwwroot = 'http://moodle.local';
+    }
+
+    // sslproxy: tells Moodle to trust that the request is HTTPS even
+    // though Apache inside the pod receives plain HTTP from Traefik
+    // (TLS terminates at the ingress). Without this, Moodle sees
+    // scheme=http but wwwroot=https, then emits a redirect to
+    // canonicalize — which Traefik sends back on HTTPS — which Moodle
+    // still sees as http → infinite loop. Only enable when the
+    // canonical wwwroot is https://.
+    if (strpos($CFG->wwwroot, 'https://') === 0) {
+        $CFG->sslproxy = true;
     }
 
     $CFG->dataroot  = '/var/moodledata';
