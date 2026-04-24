@@ -134,4 +134,135 @@ data:
     $CFG->admin     = 'admin';
     $CFG->directorypermissions = 0777;
 
+    // ------------------------------------------------------------------
+    //  TWSI brand override
+    // ------------------------------------------------------------------
+    //
+    //  Uses Moodle's `forced_plugin_settings` to inject theme + site
+    //  presentation config at every request — no database writes, no
+    //  admin UI step, no drift between environments. The forcing is
+    //  read-only for admins in the Moodle UI (settings render greyed
+    //  out with a "this is locked by config.php" note), which is the
+    //  signal we want: branding is infrastructure, not content.
+    //
+    //  When SCSS changes, purge the theme cache so the compiled CSS
+    //  picks it up:
+    //      docker exec -it <moodle-pod> \
+    //        php admin/cli/purge_caches.php --theme
+    //  (or "Purge all caches" in site admin).
+    //
+    //  When the official SVG brandmark arrives:
+    //    1. Drop it at /var/www/html/theme/boost/pix/twsi-logo.svg
+    //       (via the Docker image build).
+    //    2. Switch `logo` + `logocompact` below from data-URLs to
+    //       the real filenames.
+    // ------------------------------------------------------------------
+    $CFG->theme = 'boost';
+
+    $twsi_scss_pre = <<<'SCSS'
+    // Load Montserrat (brand body/heading face) from Google Fonts.
+    // Can't use Cinzel here — per TWSI brand guidelines, Cinzel is
+    // reserved for the logo wordmark only, nothing else.
+    @import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap");
+
+    // -----------------------------------------------------------------
+    //  TWSI light-mode palette (from the brand guidelines PDF)
+    // -----------------------------------------------------------------
+    $primary:         #0B6E4F;   // Emerald Green — brand primary
+    $brand-cta:       #0FB67A;   // Emerald Action — CTA fill
+    $brand-hover:     #084D37;   // Dark Emerald — hover / pressed
+    $secondary:       #2B4162;   // Indigo Blue — headings + chrome
+    $accent:          #E1C15A;   // Soft Gold — highlights
+    $mint:            #6FD6B3;   // Fresh Mint — success/confirmation
+    $bg:              #F4FAF8;   // Soft Mint White — page bg
+    $surface:         #FFFFFF;   // Pure White — cards
+    $ink:             #2A2A2A;   // Charcoal — body text
+    $ink-muted:       #777777;   // Medium Grey — secondary text
+    $border:          #D7E4DD;   // neutral-green divider
+    SCSS;
+
+    $twsi_scss_post = <<<'SCSS'
+    // -----------------------------------------------------------------
+    //  Typography — Montserrat everywhere (Cinzel is logo-only)
+    // -----------------------------------------------------------------
+    body,
+    .navbar,
+    .btn,
+    .form-control,
+    .card,
+    h1, h2, h3, h4, h5, h6 {
+      font-family: "Montserrat", -apple-system, "Segoe UI", sans-serif;
+    }
+
+    h1, h2, h3, .h1, .h2, .h3 { font-weight: 700; }
+    h4, h5, h6, .h4, .h5, .h6 { font-weight: 600; }
+
+    // -----------------------------------------------------------------
+    //  Surfaces — soft mint bg, charcoal ink
+    // -----------------------------------------------------------------
+    body { background: #F4FAF8; color: #2A2A2A; }
+    .card,
+    .block,
+    #region-main { background: #FFFFFF; }
+
+    // -----------------------------------------------------------------
+    //  Primary buttons — emerald action with dark-emerald hover
+    // -----------------------------------------------------------------
+    .btn-primary,
+    .btn.btn-primary {
+      background-color: #0FB67A;
+      border-color: #0FB67A;
+    }
+    .btn-primary:hover,
+    .btn-primary:focus,
+    .btn-primary:active {
+      background-color: #084D37 !important;
+      border-color: #084D37 !important;
+    }
+
+    // Links + secondary chrome use the primary emerald
+    a, a:visited { color: #0B6E4F; }
+    a:hover { color: #084D37; }
+
+    // -----------------------------------------------------------------
+    //  Chrome cleanup — students are in a single quiz. Hide the
+    //  Moodle-native bits that don't belong on an admissions test:
+    //    - course breadcrumb (they entered via SSO, nav is noise)
+    //    - "My courses" drawer
+    //    - default footer
+    // -----------------------------------------------------------------
+    .breadcrumb-nav { display: none; }
+    nav[aria-label="Navigation bar"] { display: none; }
+    .drawer[data-region="drawer"] .list-group-item[data-key="mycourses"] { display: none; }
+    #page-footer,
+    .footer-dark { display: none; }
+
+    // Quiz-specific polish — keep the attempt page uncluttered
+    #page-mod-quiz-attempt #region-main { border: 1px solid #D7E4DD; border-radius: 12px; }
+    SCSS;
+
+    $CFG->forced_plugin_settings = [
+        'theme_boost' => [
+            // Boost theme concatenates these two slots around its own
+            // _variables.scss. `scsspre` runs BEFORE the default SASS
+            // vars so our $primary overrides the stock Bootstrap one.
+            'scsspre' => $twsi_scss_pre,
+            'scss'    => $twsi_scss_post,
+            // Brand colour used for the Boost navbar + links. Hex only;
+            // this is the flat value, the SCSS above does the rest.
+            'brandcolor' => '#0B6E4F',
+            // Turn OFF the default login-page background image — we want
+            // a clean Mint-white page matching the parent portal vibe.
+            'loginbackgroundimage' => '',
+        ],
+        // Sitewide presentation
+        'core' => [
+            'fullname' => 'TWSI · The World Scholars Institute',
+            'shortname' => 'TWSI',
+            'summary' => 'Admissions assessment platform for The World Scholars Institute.',
+            'supportname' => 'TWSI Admissions',
+            'supportemail' => 'admissions@cybe.tech',
+        ],
+    ];
+
     require_once(__DIR__ . '/lib/setup.php');
