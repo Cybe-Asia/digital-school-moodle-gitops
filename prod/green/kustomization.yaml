@@ -134,6 +134,42 @@ patches:
     kind: Deployment
     name: frontend
 
+# Moodle integration for admission-service. Reuses moodle-frontend-secret
+# (same API token + salt as the frontend pod). Without these the new
+# /me/students/:id/online-test/sync endpoint returns 501.
+- patch: |-
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: MOODLE_INTERNAL_URL
+        value: http://moodle:80
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: MOODLE_PUBLIC_URL
+        value: http://school-moodle.cybe.tech
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: MOODLE_IIHS_COURSE_ID
+        value: 2
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: MOODLE_IISS_COURSE_ID
+        value: 3
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: MOODLE_API_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: moodle-frontend-secret
+            key: MOODLE_API_TOKEN
+  target:
+    kind: Deployment
+    name: admission-service
+
 images:
 - name: ghcr.io/cybe-asia/admission-services
   newName: ghcr.io/cybe-asia/admission-services
