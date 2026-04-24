@@ -72,6 +72,118 @@ spec:
       targetPort: 80
   type: ClusterIP
 ---
+# -----------------------------------------------------------------------------
+#  TWSI brand init — one-shot Job that runs on every ArgoCD sync and
+#  fills the gaps the config.php `forced_plugin_settings` can't reach.
+#
+#  Specifically:
+#    1. `mdl_course.fullname` / `mdl_course.shortname` for the site
+#       course (id=1). These are read directly from the course table
+#       into $SITE at bootstrap and are NOT overridable via
+#       forced_plugin_settings — they need a DB row update.
+#    2. `purge_all_caches()` so the new forced_plugin_settings theme
+#       SCSS compiles on next page load instead of serving the stale
+#       compiled CSS from /var/moodledata/cache/theme/.
+#
+#  Idempotent: the PHP script checks current values and only writes
+#  when they differ, so successive syncs are cheap no-ops.
+#
+#  ArgoCD hook `PostSync` — runs after the main Sync wave completes,
+#  so the Moodle Deployment + Service are up and the DB is reachable.
+#  `BeforeHookCreation` delete policy wipes old Job objects before
+#  re-creating, otherwise completed Jobs pile up at every sync.
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: moodle-twsi-brand-init
+  namespace: moodle
+data:
+  init.php: |
+    <?php
+    // Run inside the Moodle image, so /var/www/html/config.php is
+    // already mounted. CLI_SCRIPT lets Moodle skip its HTTP init.
+    define('CLI_SCRIPT', true);
+    require('/var/www/html/config.php');
+    global $DB;
+
+    $TARGET_FULLNAME  = 'TWSI · The World Scholars Institute';
+    $TARGET_SHORTNAME = 'TWSI';
+
+    $site = $DB->get_record('course', ['id' => 1]);
+    if (!$site) {
+        fwrite(STDERR, "[twsi-init] FATAL: no site course (id=1) found\n");
+        exit(1);
+    }
+
+    $changed = false;
+    if ($site->fullname !== $TARGET_FULLNAME) {
+        $site->fullname = $TARGET_FULLNAME;
+        $changed = true;
+    }
+    if ($site->shortname !== $TARGET_SHORTNAME) {
+        $site->shortname = $TARGET_SHORTNAME;
+        $changed = true;
+    }
+
+    if ($changed) {
+        $DB->update_record('course', $site);
+        echo "[twsi-init] Updated site course — fullname + shortname\n";
+    } else {
+        echo "[twsi-init] Site course already on-brand, no DB write\n";
+    }
+
+    // Purge every cache so the new forced_plugin_settings theme SCSS
+    // recompiles and any stale language / nav / string caches clear.
+    // purge_all_caches() is Moodle's canonical "wipe everything" call —
+    // lighter options like theme_reset_all_caches() miss MUC stores.
+    purge_all_caches();
+    echo "[twsi-init] purge_all_caches() done\n";
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: moodle-twsi-brand-init
+  namespace: moodle
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  # Don't re-try forever if the script genuinely fails — 3 attempts
+  # is enough to absorb a transient DB blip, and if it's still red
+  # the admin should look at the sync log.
+  backoffLimit: 3
+  # Stop the Job if it hasn't completed in 5 minutes. Normal runtime
+  # is sub-10-seconds; anything longer means we're waiting on a dead
+  # DB pod and failing fast is better than silent half-applied state.
+  activeDeadlineSeconds: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: twsi-init
+          image: ghcr.io/cybe-asia/digital-school-moodle:latest
+          imagePullPolicy: Always
+          command: ["php", "/opt/twsi-brand/init.php"]
+          volumeMounts:
+            # Same mount the main Deployment uses, so the init script
+            # picks up the exact config.php that's live right now.
+            - mountPath: /var/www/html/config.php
+              name: moodle-config
+              subPath: config.php
+            - mountPath: /opt/twsi-brand/init.php
+              name: init-script
+              subPath: init.php
+      volumes:
+        - name: moodle-config
+          configMap:
+            name: moodle-config
+        - name: init-script
+          configMap:
+            name: moodle-twsi-brand-init
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
