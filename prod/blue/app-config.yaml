@@ -10,3 +10,13 @@ data:
   SMTP_HOST: "smtp.sendgrid.net"
   SMTP_PORT: "587"
   SMTP_USER: "apikey"
+  # Object storage for admissions DocumentArtifact bytes. Same shape
+  # as lab/test — in-cluster MinIO StatefulSet, scoped service-account
+  # creds carried in app-secrets (MINIO_ACCESS_KEY/MINIO_SECRET_KEY).
+  # Bucket name is per-color so a fast color rollback never mixes
+  # documents written under one release with metadata expecting the
+  # other; documents are content-addressed but the bucket key paths
+  # are version-coupled.
+  MINIO_ENDPOINT: "http://minio:9000"
+  MINIO_BUCKET: "ds-documents-blue"
+  MINIO_REGION: "us-east-1"

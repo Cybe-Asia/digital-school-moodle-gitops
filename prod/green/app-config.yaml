@@ -10,3 +10,9 @@ data:
   SMTP_HOST: "smtp.sendgrid.net"
   SMTP_PORT: "587"
   SMTP_USER: "apikey"
+  # Object storage for admissions DocumentArtifact bytes. See
+  # prod/blue/app-config.yaml for full notes; same shape, separate
+  # bucket per color.
+  MINIO_ENDPOINT: "http://minio:9000"
+  MINIO_BUCKET: "ds-documents-green"
+  MINIO_REGION: "us-east-1"

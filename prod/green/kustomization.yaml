@@ -21,6 +21,12 @@ resources:
 - app-secrets-sealed.yaml
 - neo4j-secret-sealed.yaml
 - pdbs.yaml
+# MinIO object store for admissions documents.
+# Sealed creds live in prod/green/minio-secret-sealed.yaml (root) and
+# the scoped MINIO_ACCESS_KEY/MINIO_SECRET_KEY have been merged into
+# prod/green/app-secrets-sealed.yaml. See runbooks/minio-prod-deploy.md.
+- ../../base/minio
+- minio-secret-sealed.yaml
 
 # Moodle LMS: admissions-test engine + future student learning.
 # Base at base/moodle/; overlay adds per-env ingress + sealed DB secret.
