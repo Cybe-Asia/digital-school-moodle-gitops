@@ -141,22 +141,22 @@ patches:
       path: /spec/template/spec/containers/0/env/-
       value:
         name: MOODLE_IIHS_COURSE_ID
-        value: 2
+        value: "2"
     - op: add
       path: /spec/template/spec/containers/0/env/-
       value:
         name: MOODLE_IIHS_QUIZ_CMID
-        value: 3
+        value: "3"
     - op: add
       path: /spec/template/spec/containers/0/env/-
       value:
         name: MOODLE_IISS_COURSE_ID
-        value: 3
+        value: "3"
     - op: add
       path: /spec/template/spec/containers/0/env/-
       value:
         name: MOODLE_IISS_QUIZ_CMID
-        value: 4
+        value: "4"
     - op: add
       path: /spec/template/spec/containers/0/env/-
       value:
@@ -191,12 +191,12 @@ patches:
       path: /spec/template/spec/containers/0/env/-
       value:
         name: MOODLE_IIHS_COURSE_ID
-        value: 2
+        value: "2"
     - op: add
       path: /spec/template/spec/containers/0/env/-
       value:
         name: MOODLE_IISS_COURSE_ID
-        value: 3
+        value: "3"
     - op: add
       path: /spec/template/spec/containers/0/env/-
       value:
