@@ -1,3 +1,11 @@
+# Host-scoped to school-dev.cybe.tech. WITHOUT the `host:` field below
+# this Ingress matches ANY incoming Host header (`(no host)` rule),
+# turning school-dev into a cluster-wide catch-all that silently
+# swallows requests intended for other hostnames. We hit this in
+# 2026-04 — `school-test.cybe.tech` over plain HTTP fell through to
+# this ingress and served the school-dev frontend.
+#
+# Always include `host:` on every public-facing ingress.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -8,7 +16,8 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - http:
+    - host: school-dev.cybe.tech
+      http:
         paths:
           - path: /api/v1/auth-service
             pathType: Prefix

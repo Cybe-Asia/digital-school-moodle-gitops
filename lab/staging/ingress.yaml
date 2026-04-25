@@ -1,3 +1,14 @@
+# Host-scoped to school-staging.cybe.tech. WITHOUT the `host:` field
+# below this Ingress matches ANY incoming Host header (`(no host)`
+# rule), turning school-staging into a cluster-wide catch-all that
+# silently swallows requests intended for other hostnames. We hit
+# this in 2026-04 — `school-test.cybe.tech` over plain HTTP fell
+# through to this ingress and served the wrong frontend.
+#
+# Always include `host:` on every public-facing ingress.
+# Also pinning `ingressClassName: traefik` rather than relying on
+# cluster default — explicit is portable across clusters where the
+# default ingress controller might be nginx or GKE Ingress.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -6,8 +17,10 @@ metadata:
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: web
 spec:
+  ingressClassName: traefik
   rules:
-    - http:
+    - host: school-staging.cybe.tech
+      http:
         paths:
           - path: /api/v1/auth-service
             pathType: Prefix
