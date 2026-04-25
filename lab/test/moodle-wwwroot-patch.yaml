@@ -1,6 +1,22 @@
-# Sets MOODLE_WWWROOT env var used as fallback by config.php when
-# HTTP_HOST is unavailable (e.g., during CLI install or cron runs).
-# The live request path still reads HTTP_HOST dynamically.
+# Pins MOODLE_WWWROOT to the canonical public URL. Since this is
+# the PRIMARY source (per config.php), every Moodle-generated URL
+# uses this exact base — including links emailed to users, the
+# auth_userkey SSO callback URL, JS asset references, and quiz
+# attempt navigation.
+#
+# We pin to https://...:8443 explicitly because:
+#   1. nginx :8443 has the publicly-trusted Let's Encrypt cert,
+#      so mobile devices outside the lab show a green padlock.
+#   2. nginx :443 has the internal lab-CA cert (cert-manager) —
+#      mobile devices don't trust it without installing the lab
+#      root.
+#   3. If we left wwwroot on :443, Moodle would generate :443
+#      links and links clicked on mobile would hit the untrusted
+#      cert — the entire reason :8443 exists.
+#
+# Hitting :443 still works (nginx redirects to :8443 via Moodle's
+# canonicalization). For desktop users on the lab network the
+# extra hop is invisible. Mobile users always end up on :8443.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,4 +28,4 @@ spec:
         - name: moodle
           env:
             - name: MOODLE_WWWROOT
-              value: http://school-test-moodle.cybe.tech
+              value: https://school-test-moodle.cybe.tech:8443

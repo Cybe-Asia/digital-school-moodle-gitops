@@ -9,8 +9,16 @@ data:
   # Inter-service URLs (in-cluster DNS — each svc listens on port 80)
   AUTH_SERVICE_URL: "http://auth-service"
   NOTIFICATION_SERVICE_URL: "http://notification-service"
-  # Public frontend origin used to build the EOI verification link in emails
-  FRONTEND_URL: "http://school-test.cybe.tech"
+  # Public frontend origin. Used by admission-service for:
+  #   - the EOI verification link sent in emails
+  #   - the post-registration redirect after EOI submit
+  #   - any other server-built absolute URL
+  #
+  # Pinned to :8443 (publicly-trusted Let's Encrypt cert) so links
+  # clicked from external/mobile devices show a green padlock.
+  # Internal lab traffic on :443 still works (nginx serves it with
+  # the lab-CA cert), but the canonical URL is :8443.
+  FRONTEND_URL: "https://school-test.cybe.tech:8443"
   # Transactional email via Resend (smtp.resend.com — STARTTLS on 587)
   EMAIL_FROM: "no-reply@mail.cybe.tech"
   SMTP_HOST: "smtp.resend.com"
@@ -20,8 +28,8 @@ data:
   #   http://school-test.cybe.tech/api/v1/payments/webhook/xendit
   TENANT_ID: "TENANT-001"
   XENDIT_API_URL: "https://api.xendit.co"
-  XENDIT_SUCCESS_REDIRECT_URL: "http://school-test.cybe.tech/auth/setup-account/payment/return?status=paid"
-  XENDIT_FAILURE_REDIRECT_URL: "http://school-test.cybe.tech/auth/setup-account/payment/return?status=failed"
+  XENDIT_SUCCESS_REDIRECT_URL: "https://school-test.cybe.tech:8443/auth/setup-account/payment/return?status=paid"
+  XENDIT_FAILURE_REDIRECT_URL: "https://school-test.cybe.tech:8443/auth/setup-account/payment/return?status=failed"
   DEFAULT_FEE_CURRENCY: "IDR"
   DEFAULT_FEE_DUE_HOURS: "168"
   # Admin review queue allowlist — comma-separated emails that are
