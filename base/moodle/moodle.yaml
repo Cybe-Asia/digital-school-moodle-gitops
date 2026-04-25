@@ -110,14 +110,4 @@ spec:
     - name: http
       port: 80
       targetPort: 80
-      # Pinned NodePort so the host nginx vhost can proxy directly to
-      # Moodle, bypassing Traefik. The Traefik path produced an
-      # infinite 303 redirect loop on /login (cookie-test failure
-      # — Traefik's header rewrites confused Moodle's session
-      # handshake when wwwroot includes :8443). Going node→pod
-      # direct sidesteps that entirely.
-      #
-      # 31808 picked from the high-end of the NodePort range; if a
-      # collision shows up later, any free port in 30000-32767 works.
-      nodePort: 31808
-  type: NodePort
+  type: ClusterIP

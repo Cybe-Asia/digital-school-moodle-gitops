@@ -59,6 +59,19 @@ if (strpos($CFG->wwwroot, 'https://') === 0) {
     $CFG->sslproxy = true;
 }
 
+// reverseproxy: tells Moodle that a reverse proxy is in front of it
+// (Traefik, then nginx-on-cybe-host) and to trust the
+// X-Forwarded-* headers. Without this, Moodle's canonical-URL
+// canonicalization redirect kicks in whenever the perceived URL
+// (HTTP_HOST + port) doesn't byte-equal $CFG->wwwroot, producing
+// a 303 → 303 → 303 loop. With it, Moodle skips the canonicalize
+// step and serves the response on whatever URL the request
+// arrived at, trusting the proxy chain to be correct.
+//
+// Combined with sslproxy above this is the standard "behind a
+// reverse proxy that does TLS termination" recipe.
+$CFG->reverseproxy = true;
+
 $CFG->dataroot  = '/var/moodledata';
 $CFG->admin     = 'admin';
 $CFG->directorypermissions = 0777;
