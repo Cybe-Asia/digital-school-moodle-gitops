@@ -16,6 +16,7 @@ resources:
 - ../../base/notification
 - ../../base/otp
 - ../../base/payment
+- ../../base/sis-services
 - ../../base/frontend
 - ../../base/neo4j
 - ../../base/governance
@@ -259,3 +260,6 @@ images:
 - name: ghcr.io/cybe-asia/otp-services
   newName: ghcr.io/cybe-asia/otp-services
   newTag: sha-bf8101b
+- name: ghcr.io/cybe-asia/sis-services
+  newName: ghcr.io/cybe-asia/sis-services
+  newTag: sha-1e0f891

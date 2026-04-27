@@ -43,6 +43,44 @@ spec:
                 name: admission-service
                 port:
                   number: 80
+          # SIS (Student Information System) routes — must come BEFORE
+          # the /api/leads/v1 admission-service catch-all so longest-prefix
+          # matching reaches sis-service first.
+          - path: /api/v1/sis-service
+            pathType: Prefix
+            backend:
+              service:
+                name: sis-service
+                port:
+                  number: 80
+          - path: /api/leads/v1/admin/sis
+            pathType: Prefix
+            backend:
+              service:
+                name: sis-service
+                port:
+                  number: 80
+          - path: /api/leads/v1/me/grades
+            pathType: Prefix
+            backend:
+              service:
+                name: sis-service
+                port:
+                  number: 80
+          - path: /api/leads/v1/me/attendance
+            pathType: Prefix
+            backend:
+              service:
+                name: sis-service
+                port:
+                  number: 80
+          - path: /api/leads/v1/me/sections
+            pathType: Prefix
+            backend:
+              service:
+                name: sis-service
+                port:
+                  number: 80
           # New admissions endpoints (parent + admin) live under
           # /api/leads/v1. Without this rule, browser-side calls to
           # those paths fall through to the frontend Service and 404.
