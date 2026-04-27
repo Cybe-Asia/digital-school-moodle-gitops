@@ -101,6 +101,30 @@ patches:
     kind: Service
     name: frontend
 - patch: |-
+    # Public origin used by Next.js SSR for non-/api/leads/v1 paths
+    # (auth, otp, notification, payments) — Traefik routes these to
+    # the right service based on path prefix.
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: API_GATEWAY_URL
+        value: "http://school-staging.cybe.tech"
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: NEXT_PUBLIC_API_GATEWAY_URL
+        value: "http://school-staging.cybe.tech"
+    # SSR bypass: the Host-aliased gateway URL above works for most
+    # paths but Traefik returns 404 for /api/leads/v1/* when the pod
+    # reaches it via the ClusterIP shortcut. Point SSR fetches
+    # directly at the admission-service ClusterIP instead — the
+    # /me, /me/sections, /me/attendance, /me/grades, /me/document-requests
+    # endpoints all live under /api/leads/v1 on that service.
+    - op: add
+      path: /spec/template/spec/containers/0/env/-
+      value:
+        name: ADMISSION_SERVICE_URL
+        value: "http://admission-service/api/leads/v1"
     - op: add
       path: /spec/template/spec/containers/0/env/-
       value:

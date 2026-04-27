@@ -43,6 +43,16 @@ spec:
                 name: admission-service
                 port:
                   number: 80
+          # New admissions endpoints (parent + admin) live under
+          # /api/leads/v1. Without this rule, browser-side calls to
+          # those paths fall through to the frontend Service and 404.
+          - path: /api/leads/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: admission-service
+                port:
+                  number: 80
           - path: /api/v1/otp-service
             pathType: Prefix
             backend:
