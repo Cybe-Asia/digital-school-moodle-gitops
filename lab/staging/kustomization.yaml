@@ -27,6 +27,14 @@ resources:
 - neo4j-secret-sealed.yaml
 - smoke-test-job.yaml
 - unleash-frontend-token.sealed.yaml
+# Separate GHCR pull secret for sis-services. The org-wide
+# ghcr-secret (Fauzi's token) doesn't have access to the
+# sis-services package; arief's token does. kubelet tries each
+# imagePullSecret in order, so adding this as a SECOND secret on
+# sis-service Deployment lets sis-services pull while leaving the
+# other services on the existing token. Replace once we have one
+# token with access to all packages.
+- ghcr-secret-sis-sealed.yaml
 - ../../base/moodle
 - moodle-ingress.yaml
 - moodle-mariadb-secret-sealed.yaml
@@ -240,6 +248,18 @@ patches:
   target:
     kind: Deployment
     name: admission-service
+# sis-service pull secret patch — kubelet tries imagePullSecrets in
+# order; ghcr-secret-sis carries the token with sis-services package
+# access, ghcr-secret stays as the org-wide fallback for any other
+# layer reuse.
+- patch: |-
+    - op: add
+      path: /spec/template/spec/imagePullSecrets/-
+      value:
+        name: ghcr-secret-sis
+  target:
+    kind: Deployment
+    name: sis-service
 
 images:
 - name: ghcr.io/ariefnugrahaaa/payment-services
@@ -262,4 +282,7 @@ images:
   newTag: sha-bf8101b
 - name: ghcr.io/cybe-asia/sis-services
   newName: ghcr.io/cybe-asia/sis-services
-  newTag: sha-1e0f891
+  # Bumped from sha-1e0f891 (the lab/test pin) — that tag was pruned
+  # from GHCR and is no longer pullable. sha-d28ab33 is what's
+  # currently published on the package.
+  newTag: sha-d28ab33
