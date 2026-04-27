@@ -51,6 +51,22 @@ spec:
         - mountPath: /etc/apache2/sites-available/000-default.conf
           name: apache-vhost
           subPath: 000-default.conf
+        - mountPath: /usr/local/etc/php/conf.d/moodle.ini
+          name: moodle-php-ini
+          subPath: moodle.ini
+        - mountPath: /var/www/html/vendor
+          name: vendor-dir
+      initContainers:
+      - name: create-vendor
+        image: busybox:1.36
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            mkdir -p /vendor/composer
+            echo '<?php' > /vendor/autoload.php
+        volumeMounts:
+        - mountPath: /vendor
+          name: vendor-dir
       imagePullSecrets:
       - name: ghcr-secret
       volumes:
@@ -63,6 +79,11 @@ spec:
       - configMap:
           name: moodle-apache-vhost
         name: apache-vhost
+      - configMap:
+          name: moodle-php-ini
+        name: moodle-php-ini
+      - name: vendor-dir
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -112,4 +133,13 @@ data:
 kind: ConfigMap
 metadata:
   name: moodle-config
+  namespace: skillz-prod-blue
+---
+apiVersion: v1
+data:
+  moodle.ini: |
+    max_input_vars = 5000
+kind: ConfigMap
+metadata:
+  name: moodle-php-ini
   namespace: skillz-prod-blue
