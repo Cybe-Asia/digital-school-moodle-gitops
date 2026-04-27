@@ -38,21 +38,15 @@ data:
   # allowed to hit /admin/applications* on admission-service. Empty/unset
   # means no admins exist (every admin call returns 403).
   #
-  # Mirrors lab/test verbatim — these are gating tokens, not real
-  # mailboxes. Replace with real staff emails for end-to-end demos.
-  # arief.nugrahaaa@gmail.com is intentionally excluded so it stays
-  # a parent account in staging too (matches test's behaviour).
-  ADMIN_EMAILS: "demo.parent@school-test.local,admin@school-test.local"
-  # Object storage for admissions DocumentArtifact bytes.
-  #
-  # NOTE: MinIO is NOT yet deployed in school-staging (kustomization.yaml
-  # does not include `../../base/minio` and there is no
-  # minio-secret-sealed.yaml in this overlay). These keys are wired
-  # for future use; document upload requests will fail with a connect
-  # error until the StatefulSet is deployed. To enable: copy
-  # lab/test/minio-secret-sealed.yaml workflow (re-seal for
-  # school-staging namespace) and add `- ../../base/minio` to
-  # kustomization.yaml.
+  # Two real entries for demo:
+  #   - admin@cybe.tech                       — generic staff account
+  #   - arief.nugrahaaa+admin@gmail.com       — Gmail +alias for testing
+  #     admin role from arief's inbox without burning the bare address
+  #     (which is a parent account)
+  ADMIN_EMAILS: "admin@cybe.tech,arief.nugrahaaa+admin@gmail.com"
+  # Object storage for admissions DocumentArtifact bytes. Same shape
+  # as lab/test — in-cluster MinIO StatefulSet, scoped service-account
+  # creds carried in app-secrets (MINIO_ACCESS_KEY/MINIO_SECRET_KEY).
   MINIO_ENDPOINT: "http://minio:9000"
   MINIO_BUCKET: "ds-documents"
   MINIO_REGION: "us-east-1"
