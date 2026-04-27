@@ -95,7 +95,10 @@ spec:
     targetPort: 80
   selector:
     app: moodle
-  type: LoadBalancer
+  # NodePort, not LoadBalancer — see skillz-dev/moodle.yaml for full
+  # rationale. Short version: LB type makes klipper-lb claim public
+  # :8443 on host IPs and breaks nginx-host SNI routing.
+  type: NodePort
 ---
 apiVersion: v1
 data:
