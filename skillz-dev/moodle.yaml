@@ -95,7 +95,14 @@ spec:
     targetPort: 80
   selector:
     app: moodle
-  type: LoadBalancer
+  # NodePort (not LoadBalancer) intentionally — k3s klipper-lb claims
+  # public 8080/8443 on the host external IPs when type=LoadBalancer,
+  # which silently NATs :8443 traffic away from the host nginx via
+  # iptables. nginx host-level was already SNI-routing :8443 between
+  # school-test, school-staging and skillz-dev vhosts; the LB type
+  # broke that. NodePort still exposes 32460/30240 for nginx to
+  # proxy_pass to, without stealing the LB IP.
+  type: NodePort
 ---
 apiVersion: v1
 data:
