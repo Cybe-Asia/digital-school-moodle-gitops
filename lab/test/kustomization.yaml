@@ -9,6 +9,12 @@ namespace: school-test
 # Post-deploy one-time install (see runbooks/moodle-first-deploy.md):
 #   kubectl -n <ns> exec deploy/moodle -- \
 #     php /var/www/html/admin/cli/install_database.php --agree-license ...
+# Separate GHCR pull secret for sis-services. The org-wide
+# ghcr-secret (Fauzi's token) doesn't have access to the
+# sis-services package; arief's token does. The current
+# sis-service pod runs from a long-cached image layer and would
+# break on next restart without this patch. See lab/staging for
+# the same pattern.
 resources:
 - namespace.yaml
 - ../../base/admission
@@ -28,12 +34,6 @@ resources:
 - neo4j-secret-sealed.yaml
 - minio-secret-sealed.yaml
 - unleash-frontend-token.sealed.yaml
-# Separate GHCR pull secret for sis-services. The org-wide
-# ghcr-secret (Fauzi's token) doesn't have access to the
-# sis-services package; arief's token does. The current
-# sis-service pod runs from a long-cached image layer and would
-# break on next restart without this patch. See lab/staging for
-# the same pattern.
 - ghcr-secret-sis-sealed.yaml
 - ../../base/moodle
 - moodle-ingress.yaml
@@ -2114,6 +2114,30 @@ resources:
         # production). All lab envs (dev/test/staging) map to Unleash's
         # "development" — same flag state in Unleash flips buttons across
         # the entire lab cluster. Prod uses "production" so it's isolated.
+    # Resolve school-test.cybe.tech → traefik ClusterIP inside the pod so
+    # the Next.js proxy sends Host: school-test.cybe.tech → traefik's ingress
+    # rule for school-test-ingress matches → requests stay in this namespace.
+    # (Without this the Host would be traefik.kube-system.* and traefik would
+    # pick the wildcard school-dev-ingress and route to the wrong namespace.)
+    # SSR bypass: the Host-aliased gateway URL above works for most
+    # paths but Traefik returns 404 for /api/leads/v1/* when the pod
+    # reaches it via the ClusterIP shortcut. Point SSR fetches
+    # directly at the admission-service ClusterIP instead — the
+    # /me, /me/sections, /me/attendance, /me/grades endpoints all
+    # live under /api/leads/v1 on that service.
+    # Feature flags (Unleash). UNLEASH_FRONTEND_TOKEN is pulled from
+    # the sealed secret `unleash-frontend-token` — admin must seal the
+    # token (scoped to environment=test) before the frontend pod can
+    # start with flags enabled. Without the secret, frontend still
+    # boots and runs in "disabled" mode, using code defaults.
+        # Unleash OSS supports only built-in environments (development,
+        # production). All lab envs (dev/test/staging) map to Unleash's
+        # "development" — same flag state in Unleash flips buttons across
+        # the entire lab cluster. Prod uses "production" so it's isolated.
+# sis-service pull secret patch — kubelet tries imagePullSecrets in
+# order; ghcr-secret-sis carries the token with sis-services package
+# access, ghcr-secret stays as the org-wide fallback for any other
+# layer reuse. Same pattern as lab/staging.
 patches:
 - patch: |-
     - op: replace
@@ -2327,10 +2351,6 @@ patches:
   target:
     kind: Deployment
     name: admission-service
-# sis-service pull secret patch — kubelet tries imagePullSecrets in
-# order; ghcr-secret-sis carries the token with sis-services package
-# access, ghcr-secret stays as the org-wide fallback for any other
-# layer reuse. Same pattern as lab/staging.
 - patch: |-
     - op: add
       path: /spec/template/spec/imagePullSecrets/-
@@ -2340,6 +2360,11 @@ patches:
     kind: Deployment
     name: sis-service
 
+  # sha-1e0f891 was pruned from GHCR. The current available tag
+  # (verified via tag-list against the package) is sha-d28ab33.
+  # The running pod was on the older tag from local-image cache;
+  # this bump aligns with what the registry actually has so a
+  # restart can re-pull cleanly.
 images:
 - name: ghcr.io/ariefnugrahaaa/payment-services
   newName: ghcr.io/ariefnugrahaaa/payment-services
@@ -2352,7 +2377,7 @@ images:
   newTag: sha-c70a7fa
 - name: ghcr.io/cybe-asia/digital-school-frontend
   newName: ghcr.io/cybe-asia/digital-school-frontend
-  newTag: sha-76aa002
+  newTag: sha-83eb981
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
   newTag: sha-59bbf0a
@@ -2361,9 +2386,4 @@ images:
   newTag: sha-bf8101b
 - name: ghcr.io/cybe-asia/sis-services
   newName: ghcr.io/cybe-asia/sis-services
-  # sha-1e0f891 was pruned from GHCR. The current available tag
-  # (verified via tag-list against the package) is sha-d28ab33.
-  # The running pod was on the older tag from local-image cache;
-  # this bump aligns with what the registry actually has so a
-  # restart can re-pull cleanly.
   newTag: sha-d28ab33
