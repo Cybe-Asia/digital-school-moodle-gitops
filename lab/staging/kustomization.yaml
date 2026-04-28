@@ -96,6 +96,17 @@ replicas:
     # endpoints all live under /api/leads/v1 on that service.
         # Unleash OSS restriction: map lab/staging to Unleash "development"
         # env along with dev and test. Upgrade to Pro/Enterprise to separate.
+    # Public origin used by Next.js SSR for non-/api/leads/v1 paths
+    # (auth, otp, notification, payments) — Traefik routes these to
+    # the right service based on path prefix.
+    # SSR bypass: the Host-aliased gateway URL above works for most
+    # paths but Traefik returns 404 for /api/leads/v1/* when the pod
+    # reaches it via the ClusterIP shortcut. Point SSR fetches
+    # directly at the admission-service ClusterIP instead — the
+    # /me, /me/sections, /me/attendance, /me/grades, /me/document-requests
+    # endpoints all live under /api/leads/v1 on that service.
+        # Unleash OSS restriction: map lab/staging to Unleash "development"
+        # env along with dev and test. Upgrade to Pro/Enterprise to separate.
 patches:
 - patch: |-
     - op: replace
@@ -303,7 +314,7 @@ images:
   newTag: sha-446071f
 - name: ghcr.io/cybe-asia/admission-services
   newName: ghcr.io/cybe-asia/admission-services
-  newTag: sha-67a1029
+  newTag: sha-7b45dd5
 - name: ghcr.io/cybe-asia/auth-services
   newName: ghcr.io/cybe-asia/auth-services
   newTag: sha-c70a7fa
