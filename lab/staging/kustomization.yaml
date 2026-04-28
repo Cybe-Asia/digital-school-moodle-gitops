@@ -74,6 +74,17 @@ replicas:
 # order; ghcr-secret-sis carries the token with sis-services package
 # access, ghcr-secret stays as the org-wide fallback for any other
 # layer reuse.
+    # Public origin used by Next.js SSR for non-/api/leads/v1 paths
+    # (auth, otp, notification, payments) — Traefik routes these to
+    # the right service based on path prefix.
+    # SSR bypass: the Host-aliased gateway URL above works for most
+    # paths but Traefik returns 404 for /api/leads/v1/* when the pod
+    # reaches it via the ClusterIP shortcut. Point SSR fetches
+    # directly at the admission-service ClusterIP instead — the
+    # /me, /me/sections, /me/attendance, /me/grades, /me/document-requests
+    # endpoints all live under /api/leads/v1 on that service.
+        # Unleash OSS restriction: map lab/staging to Unleash "development"
+        # env along with dev and test. Upgrade to Pro/Enterprise to separate.
 patches:
 - patch: |-
     - op: replace
@@ -287,7 +298,7 @@ images:
   newTag: sha-c70a7fa
 - name: ghcr.io/cybe-asia/digital-school-frontend
   newName: ghcr.io/cybe-asia/digital-school-frontend
-  newTag: sha-dd31a57
+  newTag: sha-d563e30
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
   newTag: sha-59bbf0a
