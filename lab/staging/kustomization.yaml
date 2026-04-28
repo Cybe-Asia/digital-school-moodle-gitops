@@ -9,6 +9,18 @@ namespace: school-staging
 # Post-deploy one-time install (see runbooks/moodle-first-deploy.md):
 #   kubectl -n <ns> exec deploy/moodle -- \
 #     php /var/www/html/admin/cli/install_database.php --agree-license ...
+# Separate GHCR pull secret for sis-services. The org-wide
+# ghcr-secret (Fauzi's token) doesn't have access to the
+# sis-services package; arief's token does. kubelet tries each
+# imagePullSecret in order, so adding this as a SECOND secret on
+# sis-service Deployment lets sis-services pull while leaving the
+# other services on the existing token. Replace once we have one
+# token with access to all packages.
+# MinIO object store for admissions documents.
+# Sealed creds live in lab/staging/minio-secret-sealed.yaml (root) and
+# the scoped MINIO_ACCESS_KEY/MINIO_SECRET_KEY have been merged into
+# lab/staging/app-secrets-sealed.yaml. Same shape as lab/test +
+# prod/blue,green.
 resources:
 - namespace.yaml
 - ../../base/admission
@@ -27,23 +39,11 @@ resources:
 - neo4j-secret-sealed.yaml
 - smoke-test-job.yaml
 - unleash-frontend-token.sealed.yaml
-# Separate GHCR pull secret for sis-services. The org-wide
-# ghcr-secret (Fauzi's token) doesn't have access to the
-# sis-services package; arief's token does. kubelet tries each
-# imagePullSecret in order, so adding this as a SECOND secret on
-# sis-service Deployment lets sis-services pull while leaving the
-# other services on the existing token. Replace once we have one
-# token with access to all packages.
 - ghcr-secret-sis-sealed.yaml
 - ../../base/moodle
 - moodle-ingress.yaml
 - moodle-mariadb-secret-sealed.yaml
 - moodle-frontend-secret-sealed.yaml
-# MinIO object store for admissions documents.
-# Sealed creds live in lab/staging/minio-secret-sealed.yaml (root) and
-# the scoped MINIO_ACCESS_KEY/MINIO_SECRET_KEY have been merged into
-# lab/staging/app-secrets-sealed.yaml. Same shape as lab/test +
-# prod/blue,green.
 - ../../base/minio
 - minio-secret-sealed.yaml
 
@@ -59,6 +59,21 @@ replicas:
 - count: 2
   name: frontend
 
+    # Public origin used by Next.js SSR for non-/api/leads/v1 paths
+    # (auth, otp, notification, payments) — Traefik routes these to
+    # the right service based on path prefix.
+    # SSR bypass: the Host-aliased gateway URL above works for most
+    # paths but Traefik returns 404 for /api/leads/v1/* when the pod
+    # reaches it via the ClusterIP shortcut. Point SSR fetches
+    # directly at the admission-service ClusterIP instead — the
+    # /me, /me/sections, /me/attendance, /me/grades, /me/document-requests
+    # endpoints all live under /api/leads/v1 on that service.
+        # Unleash OSS restriction: map lab/staging to Unleash "development"
+        # env along with dev and test. Upgrade to Pro/Enterprise to separate.
+# sis-service pull secret patch — kubelet tries imagePullSecrets in
+# order; ghcr-secret-sis carries the token with sis-services package
+# access, ghcr-secret stays as the org-wide fallback for any other
+# layer reuse.
 patches:
 - patch: |-
     - op: replace
@@ -248,10 +263,6 @@ patches:
   target:
     kind: Deployment
     name: admission-service
-# sis-service pull secret patch — kubelet tries imagePullSecrets in
-# order; ghcr-secret-sis carries the token with sis-services package
-# access, ghcr-secret stays as the org-wide fallback for any other
-# layer reuse.
 - patch: |-
     - op: add
       path: /spec/template/spec/imagePullSecrets/-
@@ -261,13 +272,16 @@ patches:
     kind: Deployment
     name: sis-service
 
+  # Bumped from sha-1e0f891 (the lab/test pin) — that tag was pruned
+  # from GHCR and is no longer pullable. sha-d28ab33 is what's
+  # currently published on the package.
 images:
 - name: ghcr.io/ariefnugrahaaa/payment-services
   newName: ghcr.io/ariefnugrahaaa/payment-services
   newTag: sha-446071f
 - name: ghcr.io/cybe-asia/admission-services
   newName: ghcr.io/cybe-asia/admission-services
-  newTag: sha-163f474
+  newTag: sha-67a1029
 - name: ghcr.io/cybe-asia/auth-services
   newName: ghcr.io/cybe-asia/auth-services
   newTag: sha-c70a7fa
@@ -282,7 +296,4 @@ images:
   newTag: sha-bf8101b
 - name: ghcr.io/cybe-asia/sis-services
   newName: ghcr.io/cybe-asia/sis-services
-  # Bumped from sha-1e0f891 (the lab/test pin) — that tag was pruned
-  # from GHCR and is no longer pullable. sha-d28ab33 is what's
-  # currently published on the package.
   newTag: sha-d28ab33
