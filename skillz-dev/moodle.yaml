@@ -49,19 +49,6 @@ spec:
         - mountPath: /usr/local/etc/php/conf.d/moodle.ini
           name: moodle-php-ini
           subPath: moodle.ini
-        - mountPath: /var/www/html/vendor
-          name: vendor-dir
-      initContainers:
-      - name: create-vendor
-        image: busybox:1.36
-        command: ["/bin/sh", "-c"]
-        args:
-          - |
-            mkdir -p /vendor/composer
-            echo '<?php' > /vendor/autoload.php
-        volumeMounts:
-        - mountPath: /vendor
-          name: vendor-dir
       imagePullSecrets:
       - name: ghcr-secret
       volumes:
@@ -77,8 +64,6 @@ spec:
       - configMap:
           name: moodle-php-ini
         name: moodle-php-ini
-      - name: vendor-dir
-        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
