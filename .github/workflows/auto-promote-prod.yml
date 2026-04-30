@@ -129,6 +129,7 @@ jobs:
           ghcr.io/cybe-asia/digital-school-frontend
           ghcr.io/cybe-asia/notification-services
           ghcr.io/cybe-asia/otp-services
+          ghcr.io/cybe-asia/sis-services
           EOF
           if [ "$changed" = "1" ] && ! git diff --quiet kustomization.yaml; then
             git add kustomization.yaml

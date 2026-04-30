@@ -73,11 +73,13 @@ jobs:
               changed=1
             fi
           done <<'EOF'
+          ghcr.io/ariefnugrahaaa/payment-services
           ghcr.io/cybe-asia/admission-services
           ghcr.io/cybe-asia/auth-services
           ghcr.io/cybe-asia/digital-school-frontend
           ghcr.io/cybe-asia/notification-services
           ghcr.io/cybe-asia/otp-services
+          ghcr.io/cybe-asia/sis-services
           EOF
           if [ "$changed" = "1" ] && ! git diff --quiet kustomization.yaml; then
             git add kustomization.yaml
@@ -121,11 +123,13 @@ jobs:
               changed=1
             fi
           done <<'EOF'
+          ghcr.io/ariefnugrahaaa/payment-services
           ghcr.io/cybe-asia/admission-services
           ghcr.io/cybe-asia/auth-services
           ghcr.io/cybe-asia/digital-school-frontend
           ghcr.io/cybe-asia/notification-services
           ghcr.io/cybe-asia/otp-services
+          ghcr.io/cybe-asia/sis-services
           EOF
           # The lab/staging commit deliberately does NOT carry
           # [skip promote] — it's what triggers the sibling

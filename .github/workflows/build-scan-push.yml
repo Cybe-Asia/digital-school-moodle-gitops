@@ -36,13 +36,23 @@ on:
         default: "Dockerfile"
       # Branch => overlay mapping. Defaults match the digital-school-gitops layout.
       # Service repo trunk is `main`. Pushes to main auto-bump lab/dev.
-      # Pushes to release-* auto-bump lab/staging (pre-cutover smoke).
-      # Production is promotion-only via manual PR on the gitops repo —
-      # CI never auto-bumps prod/*.
+      # Pushes to qa/* auto-bump lab/test and stop.
+      # Pushes to staging/* auto-bump lab/staging and stop.
+      # Pushes to release-* auto-bump lab/staging and continue to prod.
+      # Production is promotion-only via GitOps workflows — service CI never
+      # auto-bumps prod/* directly.
       overlay_on_main:
         required: false
         type: string
         default: "lab/dev"
+      overlay_on_qa:
+        required: false
+        type: string
+        default: "lab/test"
+      overlay_on_staging:
+        required: false
+        type: string
+        default: "lab/staging"
       overlay_on_release:
         required: false
         type: string
@@ -84,6 +94,10 @@ jobs:
           case "${GITHUB_REF}" in
             refs/heads/main)
               OVERLAY="${{ inputs.overlay_on_main }}" ;;
+            refs/heads/qa/*)
+              OVERLAY="${{ inputs.overlay_on_qa }}" ;;
+            refs/heads/staging/*)
+              OVERLAY="${{ inputs.overlay_on_staging }}" ;;
             refs/heads/release-*)
               OVERLAY="${{ inputs.overlay_on_release }}" ;;
             *)
@@ -153,5 +167,10 @@ jobs:
           fi
 
           git add kustomization.yaml
-          git commit -m "chore(${{ inputs.service_name }}): bump ${{ steps.vars.outputs.overlay_path }} to ${{ steps.vars.outputs.image_tag }} [skip ci]"
+          MSG="chore(${{ inputs.service_name }}): bump ${{ steps.vars.outputs.overlay_path }} to ${{ steps.vars.outputs.image_tag }} [skip ci]"
+          case "${GITHUB_REF}" in
+            refs/heads/qa/*)       MSG="${MSG} [skip promote] (qa branch)" ;;
+            refs/heads/staging/*)  MSG="${MSG} [skip promote] (staging branch — manual promote required)" ;;
+          esac
+          git commit -m "${MSG}"
           git push origin main

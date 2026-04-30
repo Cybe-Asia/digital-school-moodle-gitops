@@ -2474,16 +2474,16 @@ images:
   newTag: sha-7b45dd5
 - name: ghcr.io/cybe-asia/auth-services
   newName: ghcr.io/cybe-asia/auth-services
-  newTag: sha-c70a7fa
+  newTag: sha-fb22d5d
 - name: ghcr.io/cybe-asia/digital-school-frontend
   newName: ghcr.io/cybe-asia/digital-school-frontend
   newTag: sha-0552453
 - name: ghcr.io/cybe-asia/notification-services
   newName: ghcr.io/cybe-asia/notification-services
-  newTag: sha-59bbf0a
+  newTag: sha-939906d
 - name: ghcr.io/cybe-asia/otp-services
   newName: ghcr.io/cybe-asia/otp-services
-  newTag: sha-bf8101b
+  newTag: sha-069221d
 - name: ghcr.io/cybe-asia/sis-services
   newName: ghcr.io/cybe-asia/sis-services
   newTag: sha-d28ab33
