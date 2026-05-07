@@ -5,7 +5,7 @@ metadata:
   namespace: skillz-staging
 spec:
   rules:
-  - host: skillz-staging.local
+  - host: skillz-staging.cybe.tech
     http:
       paths:
       - backend:
