@@ -114,7 +114,7 @@ data:
     \ HTTP_X_FORWARDED_PROTO if behind proxy/ingress\n    if (isset($_SERVER['HTTP_X_FORWARDED_PROTO'])\
     \ && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {\n        $protocol = 'https';\n\
     \    }\n    $CFG->wwwroot = $protocol . '://' . $_SERVER['HTTP_HOST'];\n} else\
-    \ {\n    $CFG->wwwroot = 'http://skillz-dev.local';\n}\n\n$CFG->dataroot  = '/var/moodledata';\n\
+    \ {\n    $CFG->wwwroot = 'https://skillz.cybe.tech:8443';\n}\n\n$CFG->dataroot  = '/var/moodledata';\n\
     $CFG->admin     = 'admin';\n$CFG->directorypermissions = 0777;\n\n$CFG->debug = (E_ALL | E_STRICT);\n$CFG->debugdisplay = 0;\n\nrequire_once(__DIR__\
     \ . '/lib/setup.php');\n"
 kind: ConfigMap
