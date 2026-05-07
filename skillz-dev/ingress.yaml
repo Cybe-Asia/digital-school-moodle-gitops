@@ -5,7 +5,7 @@ metadata:
   namespace: skillz-dev
 spec:
   rules:
-  - host: skillz.cybe.tech
+  - host: skillz-dev.cybe.tech
     http:
       paths:
       - backend:
