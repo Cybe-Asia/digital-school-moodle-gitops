@@ -126,6 +126,9 @@ apiVersion: v1
 data:
   moodle.ini: |
     max_input_vars = 5000
+    upload_max_filesize = 256M
+    post_max_size = 256M
+    memory_limit = 256M
 kind: ConfigMap
 metadata:
   name: moodle-php-ini
