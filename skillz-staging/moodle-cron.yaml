@@ -30,5 +30,6 @@ spec:
               configMap:
                 name: moodle-config
             - name: moodledata
-              emptyDir: {}
+              persistentVolumeClaim:
+                claimName: moodle-pvc
           restartPolicy: OnFailure
