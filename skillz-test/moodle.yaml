@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: skillz-staging
+  name: skillz-test
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: moodle-pvc
-  namespace: skillz-staging
+  namespace: skillz-test
 spec:
   accessModes:
   - ReadWriteOnce
@@ -20,7 +20,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: moodle
-  namespace: skillz-staging
+  namespace: skillz-test
 spec:
   replicas: 1
   selector:
@@ -88,7 +88,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: moodle
-  namespace: skillz-staging
+  namespace: skillz-test
 spec:
   ports:
   - name: http
@@ -111,13 +111,13 @@ data:
 kind: ConfigMap
 metadata:
   name: moodle-apache-vhost
-  namespace: skillz-staging
+  namespace: skillz-test
 ---
 apiVersion: v1
 data:
   config.php: "<?php  // Moodle configuration file\nunset($CFG);\nglobal $CFG;\n$CFG\
     \ = new stdClass();\n\n$CFG->dbtype    = 'mariadb';\n$CFG->dblibrary = 'native';\n\
-    $CFG->dbhost    = 'mariadb.skillz-staging.svc.cluster.local';\n$CFG->dbname  \
+    $CFG->dbhost    = 'mariadb.skillz-test.svc.cluster.local';\n$CFG->dbname  \
     \  = 'moodle';\n$CFG->dbuser    = 'moodle';\n$CFG->dbpass    = 'moodlepassword';\n\
     $CFG->prefix    = 'mdl_';\n$CFG->dboptions = array (\n  'dbpersist' => 0,\n  'dbport'\
     \ => '',\n  'dbsocket' => '',\n  'dbcollation' => 'utf8mb4_unicode_ci',\n);\n\n\
@@ -126,13 +126,13 @@ data:
     \ HTTP_X_FORWARDED_PROTO if behind proxy/ingress\n    if (isset($_SERVER['HTTP_X_FORWARDED_PROTO'])\
     \ && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {\n        $protocol = 'https';\n\
     \    }\n    $CFG->wwwroot = $protocol . '://' . $_SERVER['HTTP_HOST'];\n} else\
-    \ {\n    $CFG->wwwroot = 'https://skillz-staging.cybe.tech:8443';\n}\n\n$CFG->dataroot\
+    \ {\n    $CFG->wwwroot = 'https://skillz-test.cybe.tech:8443';\n}\n\n$CFG->dataroot\
     \  = '/var/moodledata';\n$CFG->admin     = 'admin';\n$CFG->directorypermissions\
     \ = 0777;\n\n$CFG->sslproxy = true;\n\nrequire_once(__DIR__ . '/lib/setup.php');\n"
 kind: ConfigMap
 metadata:
   name: moodle-config
-  namespace: skillz-staging
+  namespace: skillz-test
 ---
 apiVersion: v1
 data:
@@ -142,4 +142,4 @@ data:
 kind: ConfigMap
 metadata:
   name: moodle-php-ini
-  namespace: skillz-staging
+  namespace: skillz-test

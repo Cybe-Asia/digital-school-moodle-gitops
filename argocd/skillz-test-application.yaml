@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: skillz-test-services
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/part-of: skillz
+    environment: test
+spec:
+  project: skillz
+  source:
+    repoURL: https://github.com/Cybe-Asia/digital-school-moodle-gitops.git
+    targetRevision: main
+    path: skillz-test
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: skillz-test
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

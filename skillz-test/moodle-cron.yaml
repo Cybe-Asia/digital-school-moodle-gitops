@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: moodle-cron
+  namespace: skillz-test
+spec:
+  schedule: "*/1 * * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          imagePullSecrets:
+            - name: ghcr-secret
+          containers:
+            - name: moodle-cron
+              image: ghcr.io/cybe-asia/digital-school-moodle:staging
+              command:
+                - php
+                - /var/www/html/admin/cli/cron.php
+              volumeMounts:
+                - mountPath: /var/www/html/config.php
+                  name: moodle-config
+                  subPath: config.php
+                - mountPath: /var/moodledata
+                  name: moodledata
+          volumes:
+            - name: moodle-config
+              configMap:
+                name: moodle-config
+            - name: moodledata
+              persistentVolumeClaim:
+                claimName: moodle-pvc
+          restartPolicy: OnFailure
